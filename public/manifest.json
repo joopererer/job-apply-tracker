@@ -1,0 +1,26 @@
+{
+  "name": "FR Job Tracker - 法国求职雷达",
+  "short_name": "JobTracker",
+  "description": "专为法国求职设计的零 Token 职位刮削、防重投递与 HR 闪电反查雷达",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090d16",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "share_target": {
+    "action": "/share",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
+}

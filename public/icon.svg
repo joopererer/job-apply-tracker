@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1d4ed8" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+    <linearGradient id="flag-fr" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#002395" />
+      <stop offset="33%" stop-color="#002395" />
+      <stop offset="33%" stop-color="#ffffff" />
+      <stop offset="66%" stop-color="#ffffff" />
+      <stop offset="66%" stop-color="#ed2939" />
+      <stop offset="100%" stop-color="#ed2939" />
+    </linearGradient>
+  </defs>
+  <!-- Background rounded rect -->
+  <rect width="512" height="512" rx="112" fill="#0b1329" />
+  <!-- Radar circles -->
+  <circle cx="256" cy="256" r="180" fill="none" stroke="#1e293b" stroke-width="8" />
+  <circle cx="256" cy="256" r="120" fill="none" stroke="#2563eb" stroke-width="4" stroke-opacity="0.4" />
+  <circle cx="256" cy="256" r="60" fill="none" stroke="#38bdf8" stroke-width="3" stroke-opacity="0.6" />
+  <!-- Briefcase icon in center -->
+  <rect x="156" y="196" width="200" height="150" rx="24" fill="url(#grad)" />
+  <path d="M206 196 V166 C206 150 218 138 234 138 H278 C294 138 306 150 306 166 V196" fill="none" stroke="#60a5fa" stroke-width="16" stroke-linecap="round" />
+  <!-- French flag mini badge at bottom right -->
+  <g transform="translate(320, 310)">
+    <rect width="64" height="42" rx="8" fill="url(#flag-fr)" stroke="#ffffff" stroke-width="3" />
+  </g>
+</svg>
