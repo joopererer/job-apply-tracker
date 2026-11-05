@@ -298,3 +298,4 @@ btnOpenBoardEl.addEventListener('click', () => {
 
 // 弹窗打开时立即执行
 document.addEventListener('DOMContentLoaded', runExtraction);
+
