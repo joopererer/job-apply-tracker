@@ -1,4 +1,4 @@
-import { ContractType, JobLanguage } from './types';
+import { ContractType, JobLanguage, WorkMode } from './types';
 
 /**
  * 去除重音符号辅助函数
@@ -132,37 +132,95 @@ export function detectLanguage(text: string): JobLanguage {
 
 /**
  * 合同类型提取：
- * 优先匹配 CDI/CDD，兼容英文 Permanent (-> CDI) 和 Fixed-term (-> CDD)
+ * 规则驱动精准识别 CDI, CDD, FREELANCE, ALTERNANCE, STAGE，未命中返回 UNKNOWN
+ * 支持中/英/法三语识别（如 LinkedIn 中文界面的“全职”-> CDI，“实习”-> STAGE）
  */
 export function extractContractType(text: string): ContractType {
-  if (!text || typeof text !== 'string') return 'OTHER';
+  if (!text || typeof text !== 'string') return 'UNKNOWN';
 
   const normalized = stripDiacritics(text).toLowerCase();
 
-  // 1. 优先匹配标准的 CDI / CDD
-  if (/\bcdi\b/i.test(normalized)) {
-    return 'CDI';
-  }
-  if (/\bcdd\b/i.test(normalized)) {
-    return 'CDD';
-  }
-
-  // 2. 兼容英文 Permanent 和 Fixed-term 及对应法文全称
+  // 1. CDI: CDI, Permanent, Full-time, Temps plein, 全职, 无固定期限等
   if (
-    /\b(permanent|indefinite|full-time contract)\b/i.test(normalized) ||
-    /duree indeterminee/i.test(normalized)
+    /(?:\b(?:cdi|permanent|indefinite|full[- ]?time|temps\s+plein)\b|全职|无固定期限)/i.test(
+      normalized
+    ) ||
+    /duree\s+indeterminee/i.test(normalized)
   ) {
     return 'CDI';
   }
 
+  // 2. CDD: CDD, Fixed-term, Temporary, Intérim, 短期, 合同工等
   if (
-    /\b(fixed-term|fixed term|temporary|interim)\b/i.test(normalized) ||
-    /duree determinee/i.test(normalized)
+    /(?:\b(?:cdd|fixed[- ]?term|temporary|interim)\b|短期|合同工|固定期限)/i.test(
+      normalized
+    ) ||
+    /duree\s+determinee/i.test(normalized)
   ) {
     return 'CDD';
   }
 
-  return 'OTHER';
+  // 3. FREELANCE: Freelance, Indépendant, TJM, Auto-entrepreneur, 自由职业等
+  if (
+    /(?:\b(?:freelance|independant|tjm|auto[- ]?entrepreneur)\b|自由职业)/i.test(
+      normalized
+    )
+  ) {
+    return 'FREELANCE';
+  }
+
+  // 4. ALTERNANCE: Alternance, Apprentissage, Contrat pro
+  if (
+    /(?:\b(?:alternance|apprentissage|contrat\s+pro)\b)/i.test(normalized)
+  ) {
+    return 'ALTERNANCE';
+  }
+
+  // 5. STAGE: Stage, Internship, Stagiaire, 实习
+  if (/(?:\b(?:stage|internship|stagiaire)\b|实习)/i.test(normalized)) {
+    return 'STAGE';
+  }
+
+  return 'UNKNOWN';
+}
+
+/**
+ * 办公模式提取：
+ * 匹配：
+ * - 现场办公：Sur site, Présentiel, On-site, 现场办公, 坐班 -> ONSITE
+ * - 混合办公：Hybride, Hybrid, 混合办公, Télétravail partiel -> HYBRID
+ * - 远程办公：Télétravail complet, Full remote, 100% remote, Remote, 远程办公, 远程 -> REMOTE
+ */
+export function extractWorkMode(text?: string | null): WorkMode | null {
+  if (!text || typeof text !== 'string') return null;
+  const normalized = stripDiacritics(text).toLowerCase();
+
+  // 1. 混合办公 (优先匹配混合，避免与纯远程/纯现场冲突)
+  if (
+    /(?:\b(?:hybride|hybrid|teletravail\s+partiel)\b|混合办公)/i.test(normalized)
+  ) {
+    return 'HYBRID';
+  }
+
+  // 2. 现场办公
+  if (
+    /(?:\b(?:sur\s+site|sur\s+place|presentiel|on[- ]?site)\b|现场办公|坐班)/i.test(
+      normalized
+    )
+  ) {
+    return 'ONSITE';
+  }
+
+  // 3. 远程办公
+  if (
+    /(?:\b(?:teletravail\s+complet|full[- ]?remote|100%\s*remote|teletravail|remote)\b|远程办公|远程)/i.test(
+      normalized
+    )
+  ) {
+    return 'REMOTE';
+  }
+
+  return null;
 }
 
 /**

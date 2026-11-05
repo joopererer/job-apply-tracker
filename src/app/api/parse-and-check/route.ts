@@ -5,8 +5,8 @@ import {
   normalizeCompany,
   normalizeTitle,
   extractContractType,
+  extractWorkMode,
   detectLanguage,
-  isLikelyLocation,
   cleanAndFormatJd,
 } from '@/lib/scraper';
 import { supabase, ApplicationRecord, DuplicateCheckResult } from '@/lib/supabase';
@@ -194,12 +194,23 @@ export async function POST(request: NextRequest) {
         titleNorm: normalizeTitle(mergedTitleRaw),
         contractType:
           domExtracted.contractType ||
-          extractContractType(
-            `${domExtracted.contractType || ''} ${mergedTitleRaw} ${mergedJdContent}`
-          ) ||
-          parsedJob.contractType,
-        location: domExtracted.location || parsedJob.location || null,
-        salaryRange: domExtracted.salaryRange || parsedJob.salaryRange || null,
+          (parsedJob.contractType && parsedJob.contractType !== 'UNKNOWN'
+            ? parsedJob.contractType
+            : extractContractType(
+                `${domExtracted.contractType || ''} ${mergedTitleRaw} ${mergedJdContent}`
+              )),
+        workMode:
+          domExtracted.workMode !== undefined
+            ? domExtracted.workMode
+            : (parsedJob.workMode || extractWorkMode(`${mergedJdContent} ${mergedTitleRaw}`)),
+        location:
+          domExtracted.location !== undefined
+            ? domExtracted.location
+            : parsedJob.location || null,
+        salaryRange:
+          domExtracted.salaryRange !== undefined
+            ? domExtracted.salaryRange
+            : parsedJob.salaryRange || null,
         language:
           domExtracted.language ||
           detectLanguage(`${mergedJdContent} ${mergedTitleRaw}`),
@@ -226,21 +237,55 @@ export async function POST(request: NextRequest) {
         if (domExtracted?.location) {
           parsedJob.location = domExtracted.location;
         }
+        if (domExtracted?.workMode !== undefined) {
+          parsedJob.workMode = domExtracted.workMode;
+        }
+        if (domExtracted?.salaryRange !== undefined) {
+          parsedJob.salaryRange = domExtracted.salaryRange;
+        }
+        if (domExtracted?.contractType) {
+          parsedJob.contractType = domExtracted.contractType;
+        }
       }
     }
 
-    // 全局防错：若公司名被误识别成地理位置（例如 "Paris (75)"）
-    if (isLikelyLocation(parsedJob.companyRaw)) {
-      if (!parsedJob.location) {
-        parsedJob.location = parsedJob.companyRaw;
+    // 特殊处理 LinkedIn (包括 /jobs/view/ 与 /jobs/search/)
+    if (url && (url.includes('linkedin.com') || parsedJob.platform === 'LINKEDIN')) {
+      if (domExtracted?.titleRaw) {
+        parsedJob.titleRaw = domExtracted.titleRaw;
+        parsedJob.titleNorm = normalizeTitle(domExtracted.titleRaw);
       }
-      parsedJob.companyRaw = '';
-      parsedJob.companyNorm = '';
+      if (domExtracted?.companyRaw) {
+        parsedJob.companyRaw = domExtracted.companyRaw;
+        parsedJob.companyNorm = normalizeCompany(domExtracted.companyRaw);
+      }
+      if (domExtracted?.location) {
+        parsedJob.location = domExtracted.location;
+      }
+      if (domExtracted?.workMode !== undefined) {
+        parsedJob.workMode = domExtracted.workMode;
+      }
+      if (domExtracted?.salaryRange !== undefined) {
+        parsedJob.salaryRange = domExtracted.salaryRange;
+      }
+      if (domExtracted?.contractType) {
+        parsedJob.contractType = domExtracted.contractType;
+      }
     }
 
-    // 关键排查保底：只要客户端 (Chrome 插件等) 提取到了有效 location，强制保留，绝对不被任何后端逻辑覆盖
+    // 关键防污保底：绝不允许 location 误装为职位标题（直接对比字符串，避免 normalizeTitle 误伤中文地址）
+    if (parsedJob.location && parsedJob.titleRaw) {
+      if (parsedJob.location.trim().toLowerCase() === parsedJob.titleRaw.trim().toLowerCase()) {
+        parsedJob.location = null;
+      }
+    }
+
+    // 关键排查保底：只要客户端 (Chrome 插件等) 提取到了有效 location 且不等于 titleRaw，100% 原样强制保留
     if (domExtracted?.location && typeof domExtracted.location === 'string' && domExtracted.location.trim()) {
-      parsedJob.location = domExtracted.location.trim();
+      const trimmedLoc = domExtracted.location.trim();
+      if (!parsedJob.titleRaw || trimmedLoc.toLowerCase() !== parsedJob.titleRaw.trim().toLowerCase()) {
+        parsedJob.location = trimmedLoc;
+      }
     }
 
     // 4. 调用 Supabase 检查重复投递（优先 RPC check_job_duplicates，故障时自动降级 fallback）
@@ -272,9 +317,10 @@ export async function POST(request: NextRequest) {
       parsedJob,
       duplicates,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Internal server error while parsing job';
     return NextResponse.json(
-      { error: error?.message || 'Internal server error while parsing job' },
+      { error: message },
       { status: 500 }
     );
   }

@@ -17,7 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import { ApplicationRecord } from '@/lib/supabase';
-import { ContractType, JobLanguage, JobPlatform } from '@/lib/scraper';
+import { ContractType, JobLanguage, JobPlatform, WorkMode } from '@/lib/scraper';
 
 interface ApplicationEditModalProps {
   isOpen: boolean;
@@ -53,6 +53,7 @@ export default function ApplicationEditModal({
   const [companyRaw, setCompanyRaw] = useState('');
   const [titleRaw, setTitleRaw] = useState('');
   const [contractType, setContractType] = useState<ContractType>('CDI');
+  const [workMode, setWorkMode] = useState<WorkMode | ''>('');
   const [platform, setPlatform] = useState<JobPlatform>('OTHER');
   const [language, setLanguage] = useState<JobLanguage>('FR');
   const [status, setStatus] = useState('APPLIED');
@@ -74,6 +75,7 @@ export default function ApplicationEditModal({
       setCompanyRaw(job.company_raw || '');
       setTitleRaw(job.title_raw || '');
       setContractType((job.contract_type as ContractType) || 'CDI');
+      setWorkMode((job.work_mode as WorkMode) || '');
       setPlatform((job.platform as JobPlatform) || 'OTHER');
       setLanguage((job.language as JobLanguage) || 'FR');
       setStatus(job.status || 'APPLIED');
@@ -127,6 +129,7 @@ export default function ApplicationEditModal({
         company_raw: companyRaw.trim(),
         title_raw: titleRaw.trim(),
         contract_type: contractType,
+        work_mode: workMode || null,
         platform: platform,
         language: language,
         status: status,
@@ -230,8 +233,8 @@ export default function ApplicationEditModal({
             </div>
           </div>
 
-          {/* 状态、平台、合同、语言 */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {/* 状态、平台、合同、办公方式、语言 */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
                 当前状态
@@ -277,7 +280,26 @@ export default function ApplicationEditModal({
               >
                 <option value="CDI">CDI (长期合同)</option>
                 <option value="CDD">CDD (定期合同)</option>
-                <option value="OTHER">其他类型</option>
+                <option value="FREELANCE">FREELANCE (自由职业)</option>
+                <option value="STAGE">STAGE (实习)</option>
+                <option value="ALTERNANCE">ALTERNANCE (学徒/半工半读)</option>
+                <option value="UNKNOWN">UNKNOWN (待定/未知)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">
+                办公方式
+              </label>
+              <select
+                value={workMode}
+                onChange={(e) => setWorkMode(e.target.value as WorkMode | '')}
+                className="w-full px-2.5 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500"
+              >
+                <option value="">未注明 (不限)</option>
+                <option value="ONSITE">🏢 现场办公</option>
+                <option value="HYBRID">🔄 混合办公</option>
+                <option value="REMOTE">🏠 远程</option>
               </select>
             </div>
 

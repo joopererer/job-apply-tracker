@@ -12,6 +12,7 @@ import {
   detectLanguage,
   extractContractType,
   extractSalaryRange,
+  extractWorkMode,
   normalizeCompany,
   normalizeTitle,
   parsePostedDate,
@@ -621,7 +622,18 @@ function extractFromMetaAndText(
 
   // 4. 后备描述内容
   if (!result.jdContent) {
-    result.jdContent = rawText || metaDescription || ($ ? $('body').text().trim() : '');
+    let detailText = '';
+    if ($) {
+      const detailContainer = $(
+        '.jobsearch-RightPane #jobDescriptionText, #jobDescriptionText, .jobsearch-RightPane, .jobs-search__job-details--container, .scaffold-layout__detail, #job-details, .job-container'
+      );
+      if (detailContainer.length > 0) {
+        detailText = detailContainer.first().text().trim();
+      } else {
+        detailText = $('body').text().trim();
+      }
+    }
+    result.jdContent = rawText || detailText || metaDescription || '';
   }
 
   return result;
@@ -670,9 +682,19 @@ export function parseFromHtmlOrText(input: ScrapeInput): ScrapedJob {
     }
   }
 
-  // 2. 第一优先级：JSON-LD JobPosting 解析
+  const isIndeedSplit =
+    url.includes('indeed.') &&
+    (url.includes('vjk=') || url.includes('jk=') || url.includes('/jobs?'));
+  const isLinkedInSplit =
+    url.includes('linkedin.com') &&
+    (url.includes('/jobs/search') ||
+      url.includes('currentJobId=') ||
+      url.includes('/jobs/collections'));
+  const isSplitPage = isIndeedSplit || isLinkedInSplit;
+
+  // 2. 第一优先级：JSON-LD JobPosting 解析 (如果是分栏页，严禁使用外层可能属于其他职位的 JSON-LD)
   let jsonLdData: RawJobData | null = null;
-  if ($cheerioRoot) {
+  if ($cheerioRoot && !isSplitPage) {
     jsonLdData = extractJobPostingFromJsonLd($cheerioRoot);
   }
 
@@ -696,7 +718,10 @@ export function parseFromHtmlOrText(input: ScrapeInput): ScrapedJob {
     rawData.company = fallbackData.company;
   }
   if (!rawData.salaryRange && fallbackData.salaryRange) {
-    rawData.salaryRange = fallbackData.salaryRange;
+    // 分栏页不随意采用全局页面 metaDescription 中的薪资
+    if (!isSplitPage) {
+      rawData.salaryRange = fallbackData.salaryRange;
+    }
   }
   if (!rawData.jdContent) {
     rawData.jdContent = fallbackData.jdContent || rawText;
@@ -716,13 +741,23 @@ export function parseFromHtmlOrText(input: ScrapeInput): ScrapedJob {
     rawData.company = '';
   }
 
-  // 4. 再次对整个正文、rawText 或 HTML 进行薪资正则补全提取
+  // 4. 再次对正文、rawText 进行薪资正则补全提取
+  // 严禁在分栏页中跨容器读取可能包含左侧列表其他职位薪资的 rawText 全文
   if (!rawData.salaryRange) {
-    const salaryFromContent = extractSalaryRange(
-      `${rawText}\n${rawData.jdContent}\n${rawData.title}`
-    );
-    if (salaryFromContent) {
-      rawData.salaryRange = salaryFromContent;
+    if (isSplitPage) {
+      const salaryFromContent = extractSalaryRange(
+        `${rawData.jdContent}\n${rawData.title}`
+      );
+      if (salaryFromContent) {
+        rawData.salaryRange = salaryFromContent;
+      }
+    } else {
+      const salaryFromContent = extractSalaryRange(
+        `${rawText}\n${rawData.jdContent}\n${rawData.title}`
+      );
+      if (salaryFromContent) {
+        rawData.salaryRange = salaryFromContent;
+      }
     }
   }
 
@@ -748,6 +783,10 @@ export function parseFromHtmlOrText(input: ScrapeInput): ScrapedJob {
     .join('\n');
   const language = detectLanguage(languageText);
 
+  const workMode =
+    rawData.workMode ||
+    extractWorkMode(`${rawData.jdContent || ''} ${rawText || ''}`);
+
   return {
     platform,
     externalJobId,
@@ -757,6 +796,7 @@ export function parseFromHtmlOrText(input: ScrapeInput): ScrapedJob {
     titleRaw,
     titleNorm,
     contractType,
+    workMode: workMode || null,
     location: rawData.location || null,
     salaryRange: rawData.salaryRange || null,
     language,

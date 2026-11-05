@@ -115,6 +115,31 @@
       color: #fbbf24;
       border: 1px solid rgba(245, 158, 11, 0.3);
     }
+    .badge-freelance {
+      background: rgba(168, 85, 247, 0.15);
+      color: #c084fc;
+      border: 1px solid rgba(168, 85, 247, 0.3);
+    }
+    .badge-stage {
+      background: rgba(236, 72, 153, 0.15);
+      color: #f472b6;
+      border: 1px solid rgba(236, 72, 153, 0.3);
+    }
+    .badge-alternance {
+      background: rgba(14, 165, 233, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(14, 165, 233, 0.3);
+    }
+    .badge-unknown {
+      background: rgba(148, 163, 184, 0.15);
+      color: #94a3b8;
+      border: 1px solid rgba(148, 163, 184, 0.3);
+    }
+    .badge-workmode {
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
     .badge-lang {
       background: rgba(99, 102, 241, 0.15);
       color: #818cf8;
@@ -311,6 +336,7 @@
 
       <div class="info-list">
         <span class="badge badge-cdi" id="val-contract">CDI</span>
+        <span class="badge badge-workmode" id="val-workmode" style="display: none;">🏢 现场办公</span>
         <span class="badge badge-lang" id="val-lang">🇫🇷 FR</span>
         <span class="badge" style="background: rgba(148, 163, 184, 0.1); color: #cbd5e1; border: 1px solid #334155;" id="val-location">Paris</span>
         <span class="badge" style="background: rgba(16, 185, 129, 0.1); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.2);" id="val-salary">薪资未注明</span>
@@ -318,15 +344,52 @@
       </div>
     </div>
 
-    <!-- Quick Note & HR Contact -->
-    <div class="field-group">
-      <label class="field-label">发布日期 (Posted Date)</label>
-      <input type="text" class="input-text" id="input-posted" placeholder="如: 2026-10-25 或 1 周前">
+    <!-- Editable Form Fields (核心字段直接微调) -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+      <div class="field-group" style="margin-bottom: 0;">
+        <label class="field-label">合同类型 (Contract)</label>
+        <select class="input-text" id="select-contract" style="cursor: pointer;">
+          <option value="CDI">CDI (长期合同)</option>
+          <option value="CDD">CDD (定期合同)</option>
+          <option value="FREELANCE">FREELANCE (自由职业)</option>
+          <option value="STAGE">STAGE (实习)</option>
+          <option value="ALTERNANCE">ALTERNANCE (学徒工)</option>
+          <option value="UNKNOWN">UNKNOWN (待定/未知)</option>
+        </select>
+      </div>
+      <div class="field-group" style="margin-bottom: 0;">
+        <label class="field-label">办公方式 (Work Mode)</label>
+        <select class="input-text" id="select-workmode" style="cursor: pointer;">
+          <option value="">未注明 / 默认</option>
+          <option value="ONSITE">🏢 现场办公 (On-site)</option>
+          <option value="HYBRID">🔄 混合办公 (Hybrid)</option>
+          <option value="REMOTE">🏠 远程办公 (Remote)</option>
+        </select>
+      </div>
     </div>
-    <div class="field-group">
-      <label class="field-label">HR 联系方式 (姓名/电话)</label>
-      <input type="text" class="input-text" id="input-hr" placeholder="如: 06 12 34 56 78 或 Marie">
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+      <div class="field-group" style="margin-bottom: 0;">
+        <label class="field-label">工作地点 (Location)</label>
+        <input type="text" class="input-text" id="input-location" placeholder="如: Paris (75)">
+      </div>
+      <div class="field-group" style="margin-bottom: 0;">
+        <label class="field-label">薪资范围 (Salary)</label>
+        <input type="text" class="input-text" id="input-salary" placeholder="如: 45k - 55k € 或面议">
+      </div>
     </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+      <div class="field-group" style="margin-bottom: 0;">
+        <label class="field-label">发布日期 (Posted)</label>
+        <input type="text" class="input-text" id="input-posted" placeholder="如: 2026-10-25">
+      </div>
+      <div class="field-group" style="margin-bottom: 0;">
+        <label class="field-label">HR 联系方式 (姓名/电话)</label>
+        <input type="text" class="input-text" id="input-hr" placeholder="如: 06 12 34 56 78 或 Marie">
+      </div>
+    </div>
+
     <div class="field-group">
       <label class="field-label">投递备注笔记</label>
       <input type="text" class="input-text" id="input-notes" placeholder="如: 投递版本、内推码等...">

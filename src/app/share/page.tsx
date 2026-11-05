@@ -18,7 +18,7 @@ import {
   Sparkles,
   XCircle,
 } from 'lucide-react';
-import { ScrapedJob } from '@/lib/scraper';
+import { ScrapedJob, ContractType } from '@/lib/scraper';
 import { DuplicateCheckResult } from '@/lib/supabase';
 
 function ShareContent() {
@@ -38,7 +38,7 @@ function ShareContent() {
   // 表单微调状态
   const [companyRaw, setCompanyRaw] = useState('');
   const [titleRaw, setTitleRaw] = useState('');
-  const [contractType, setContractType] = useState<'CDI' | 'CDD' | 'OTHER'>('CDI');
+  const [contractType, setContractType] = useState<ContractType>('CDI');
   const [language, setLanguage] = useState<'FR' | 'EN'>('FR');
   const [location, setLocation] = useState('');
   const [salaryRange, setSalaryRange] = useState('');
@@ -361,22 +361,18 @@ function ShareContent() {
                   <label className="block text-xs font-medium text-slate-400 mb-1">
                     合同类型
                   </label>
-                  <div className="grid grid-cols-3 gap-1 bg-slate-800/90 p-1 rounded-xl border border-slate-700">
-                    {(['CDI', 'CDD', 'OTHER'] as const).map((type) => (
-                      <button
-                        key={type}
-                        type="button"
-                        onClick={() => setContractType(type)}
-                        className={`py-1 text-xs font-bold rounded-lg transition ${
-                          contractType === type
-                            ? 'bg-blue-600 text-white shadow'
-                            : 'text-slate-400 hover:text-slate-200'
-                        }`}
-                      >
-                        {type}
-                      </button>
-                    ))}
-                  </div>
+                  <select
+                    value={contractType}
+                    onChange={(e) => setContractType(e.target.value as ContractType)}
+                    className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-bold cursor-pointer"
+                  >
+                    <option value="CDI">CDI (长期合同)</option>
+                    <option value="CDD">CDD (定期合同)</option>
+                    <option value="FREELANCE">FREELANCE (自由职业)</option>
+                    <option value="STAGE">STAGE (实习)</option>
+                    <option value="ALTERNANCE">ALTERNANCE (学徒/半工半读)</option>
+                    <option value="UNKNOWN">UNKNOWN (待定/未知)</option>
+                  </select>
                 </div>
 
                 <div>

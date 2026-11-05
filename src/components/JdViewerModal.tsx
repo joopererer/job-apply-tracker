@@ -229,12 +229,31 @@ export default function JdViewerModal({
                 <span className="text-lg sm:text-xl font-black text-slate-100 truncate">
                   {job.company_raw}
                 </span>
-                <span className="px-2 py-0.5 rounded-lg text-xs font-extrabold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                  {job.contract_type || 'CDI'}
+                <span
+                  className={`px-2 py-0.5 rounded-lg text-xs font-extrabold border ${
+                    job.contract_type === 'CDD'
+                      ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                      : job.contract_type === 'FREELANCE'
+                      ? 'bg-purple-500/15 text-purple-400 border-purple-500/30'
+                      : job.contract_type === 'STAGE'
+                      ? 'bg-pink-500/15 text-pink-400 border-pink-500/30'
+                      : job.contract_type === 'ALTERNANCE'
+                      ? 'bg-sky-500/15 text-sky-400 border-sky-500/30'
+                      : job.contract_type === 'UNKNOWN'
+                      ? 'bg-slate-500/15 text-slate-400 border-slate-500/30'
+                      : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                  }`}
+                >
+                  {job.contract_type || 'UNKNOWN'}
                 </span>
                 <span className="px-2 py-0.5 rounded-lg text-xs font-bold bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
                   {job.language === 'FR' ? '🇫🇷 法语' : '🇬🇧 英语'}
                 </span>
+                {job.work_mode && (
+                  <span className="px-2 py-0.5 rounded-lg text-xs font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                    {job.work_mode === 'ONSITE' ? '🏢 现场办公' : job.work_mode === 'HYBRID' ? '🔄 混合办公' : '🏠 远程'}
+                  </span>
+                )}
                 {job.platform && job.platform !== 'OTHER' && (
                   <span className="px-2 py-0.5 rounded-lg text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
                     {job.platform}

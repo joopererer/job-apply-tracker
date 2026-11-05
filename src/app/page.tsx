@@ -35,7 +35,7 @@ import {
   X,
   XCircle,
 } from 'lucide-react';
-import { ScrapedJob } from '@/lib/scraper';
+import { ScrapedJob, ContractType, WorkMode } from '@/lib/scraper';
 import { ApplicationRecord, DuplicateCheckResult } from '@/lib/supabase';
 import JdViewerModal, { FormattedJdRenderer } from '@/components/JdViewerModal';
 import ApplicationEditModal from '@/components/ApplicationEditModal';
@@ -89,7 +89,8 @@ export default function HomePage() {
   // 表单微调状态
   const [editCompany, setEditCompany] = useState('');
   const [editTitle, setEditTitle] = useState('');
-  const [editContract, setEditContract] = useState<'CDI' | 'CDD' | 'OTHER'>('CDI');
+  const [editContract, setEditContract] = useState<ContractType>('CDI');
+  const [editWorkMode, setEditWorkMode] = useState<WorkMode | ''>('');
   const [editLang, setEditLang] = useState<'FR' | 'EN'>('FR');
   const [editLocation, setEditLocation] = useState('');
   const [editSalary, setEditSalary] = useState('');
@@ -219,6 +220,7 @@ export default function HomePage() {
       setEditCompany(job.companyRaw || '');
       setEditTitle(job.titleRaw || '');
       setEditContract(job.contractType || 'CDI');
+      setEditWorkMode(job.workMode || '');
       setEditLang(job.language || 'FR');
       setEditLocation(job.location || '');
       setEditSalary(job.salaryRange || '');
@@ -240,6 +242,7 @@ export default function HomePage() {
         companyRaw: editCompany,
         titleRaw: editTitle,
         contractType: editContract,
+        workMode: editWorkMode || null,
         language: editLang,
         location: editLocation || null,
         salaryRange: editSalary || null,
@@ -264,6 +267,7 @@ export default function HomePage() {
       setInputContent('');
       setParsedJob(null);
       setDuplicates([]);
+      setEditWorkMode('');
       setEditNotes('');
       setEditHr('');
       await fetchApplications();
@@ -590,28 +594,41 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                  {/* 合同类型切换 */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                  {/* 合同类型下拉选择 */}
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 mb-1">
                       合同类型
                     </label>
-                    <div className="grid grid-cols-3 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
-                      {(['CDI', 'CDD', 'OTHER'] as const).map((t) => (
-                        <button
-                          key={t}
-                          type="button"
-                          onClick={() => setEditContract(t)}
-                          className={`py-1 text-xs font-bold rounded-lg transition ${
-                            editContract === t
-                              ? 'bg-blue-600 text-white'
-                              : 'text-slate-400 hover:text-slate-200'
-                          }`}
-                        >
-                          {t}
-                        </button>
-                      ))}
-                    </div>
+                    <select
+                      value={editContract}
+                      onChange={(e) => setEditContract(e.target.value as ContractType)}
+                      className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-bold cursor-pointer"
+                    >
+                      <option value="CDI">CDI (长期合同)</option>
+                      <option value="CDD">CDD (定期合同)</option>
+                      <option value="FREELANCE">FREELANCE (自由职业)</option>
+                      <option value="STAGE">STAGE (实习)</option>
+                      <option value="ALTERNANCE">ALTERNANCE (学徒/半工半读)</option>
+                      <option value="UNKNOWN">UNKNOWN (待定/未知)</option>
+                    </select>
+                  </div>
+
+                  {/* 办公模式下拉选择 */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1">
+                      办公方式
+                    </label>
+                    <select
+                      value={editWorkMode}
+                      onChange={(e) => setEditWorkMode(e.target.value as WorkMode | '')}
+                      className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-bold cursor-pointer"
+                    >
+                      <option value="">未注明 (不限)</option>
+                      <option value="ONSITE">🏢 现场办公</option>
+                      <option value="HYBRID">🔄 混合办公</option>
+                      <option value="REMOTE">🏠 远程</option>
+                    </select>
                   </div>
 
                   {/* 语言切换 */}
@@ -871,12 +888,31 @@ export default function HomePage() {
                           <span className="text-base sm:text-lg font-black text-slate-100">
                             {app.company_raw}
                           </span>
-                          <span className="px-2 py-0.5 rounded text-[11px] font-extrabold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                            {app.contract_type || 'CDI'}
+                          <span
+                            className={`px-2 py-0.5 rounded text-[11px] font-extrabold border ${
+                              app.contract_type === 'CDD'
+                                ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                                : app.contract_type === 'FREELANCE'
+                                ? 'bg-purple-500/15 text-purple-400 border-purple-500/30'
+                                : app.contract_type === 'STAGE'
+                                ? 'bg-pink-500/15 text-pink-400 border-pink-500/30'
+                                : app.contract_type === 'ALTERNANCE'
+                                ? 'bg-sky-500/15 text-sky-400 border-sky-500/30'
+                                : app.contract_type === 'UNKNOWN'
+                                ? 'bg-slate-500/15 text-slate-400 border-slate-500/30'
+                                : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                            }`}
+                          >
+                            {app.contract_type || 'UNKNOWN'}
                           </span>
                           <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
                             {app.language === 'FR' ? '🇫🇷 FR' : '🇬🇧 EN'}
                           </span>
+                          {app.work_mode && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                              {app.work_mode === 'ONSITE' ? '🏢 现场办公' : app.work_mode === 'HYBRID' ? '🔄 混合办公' : '🏠 远程'}
+                            </span>
+                          )}
                           {app.platform && app.platform !== 'OTHER' && (
                             <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
                               {app.platform}

@@ -7,9 +7,17 @@ export type JobPlatform =
   | 'WTTJ'
   | 'OTHER';
 
-export type ContractType = 'CDI' | 'CDD' | 'OTHER';
+export type ContractType =
+  | 'CDI'
+  | 'CDD'
+  | 'STAGE'
+  | 'ALTERNANCE'
+  | 'FREELANCE'
+  | 'UNKNOWN';
 
 export type JobLanguage = 'FR' | 'EN';
+
+export type WorkMode = 'ONSITE' | 'HYBRID' | 'REMOTE';
 
 /**
  * 标准化刮削岗位实体
@@ -23,6 +31,7 @@ export interface ScrapedJob {
   titleRaw: string;
   titleNorm: string;
   contractType: ContractType;
+  workMode?: WorkMode | null;
   location: string | null;
   salaryRange: string | null;
   language: JobLanguage;
@@ -62,6 +71,7 @@ export interface RawJobData {
   title?: string;
   company?: string;
   contractTypeRaw?: string;
+  workMode?: WorkMode | null;
   location?: string | null;
   salaryRange?: string | null;
   jdContent?: string;

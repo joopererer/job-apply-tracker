@@ -105,7 +105,8 @@ export async function POST(request: NextRequest) {
       company_norm: companyNorm,
       title_raw: titleRaw,
       title_norm: titleNorm,
-      contract_type: body.contract_type || body.contractType || 'OTHER',
+      contract_type: body.contract_type || body.contractType || 'UNKNOWN',
+      work_mode: body.work_mode ?? body.workMode ?? null,
       location: body.location ?? null,
       salary_range: body.salary_range ?? body.salaryRange ?? null,
       language: body.language || 'FR',
@@ -124,6 +125,18 @@ export async function POST(request: NextRequest) {
       .insert(newRecord)
       .select()
       .single();
+
+    // 容错兜底：若数据库表尚未执行 work_mode 迁移列，剥离该字段后重试插入
+    if (error && error.message && error.message.includes('work_mode')) {
+      delete newRecord.work_mode;
+      const retry = await supabase
+        .from('applications')
+        .insert(newRecord)
+        .select()
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     // 容错：如果 Supabase 表尚未添加 posted_at 字段，自动移除并降级保存
     if (error && error.message?.includes('posted_at')) {
@@ -190,9 +203,12 @@ export async function PATCH(request: NextRequest) {
       updates.title_norm = normalizeTitle(tRaw);
     }
 
-    // 3. 合同类型与平台
+    // 3. 合同类型、工作模式与平台
     if (body.contract_type !== undefined || body.contractType !== undefined) {
       updates.contract_type = body.contract_type ?? body.contractType;
+    }
+    if (body.work_mode !== undefined || body.workMode !== undefined) {
+      updates.work_mode = body.work_mode ?? body.workMode;
     }
     if (body.platform !== undefined) updates.platform = body.platform;
     if (body.language !== undefined) updates.language = body.language;

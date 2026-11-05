@@ -20,6 +20,8 @@ export interface ApplicationRecord {
   title_raw: string;
   title_norm: string;
   contract_type: string;
+  work_mode?: string | null;
+  workMode?: string | null;
   location: string | null;
   salary_range: string | null;
   language: string;
