@@ -201,7 +201,26 @@ export async function POST(request: NextRequest) {
           domExtracted.language ||
           detectLanguage(`${mergedJdContent} ${mergedTitleRaw}`),
         jdContent: mergedJdContent,
+        postedAt: domExtracted.postedAt || parsedJob.postedAt || null,
       };
+    }
+
+    // 特殊处理 Indeed 带 vjk/jk 的分栏搜索页：强制以右侧分栏提取为准并归一化 cleanUrl
+    if (url && (url.includes('vjk=') || url.includes('jk=')) && (url.includes('indeed.') || parsedJob.platform === 'INDEED')) {
+      const vjkMatch = url.match(/[?&](?:vjk|jk)=([a-zA-Z0-9]+)/i);
+      if (vjkMatch) {
+        const vjk = vjkMatch[1];
+        parsedJob.externalJobId = vjk;
+        parsedJob.cleanUrl = `https://fr.indeed.com/viewjob?jk=${vjk}`;
+        if (domExtracted?.titleRaw) {
+          parsedJob.titleRaw = domExtracted.titleRaw;
+          parsedJob.titleNorm = normalizeTitle(domExtracted.titleRaw);
+        }
+        if (domExtracted?.companyRaw) {
+          parsedJob.companyRaw = domExtracted.companyRaw;
+          parsedJob.companyNorm = normalizeCompany(domExtracted.companyRaw);
+        }
+      }
     }
 
     // 4. 调用 Supabase 检查重复投递（优先 RPC check_job_duplicates，故障时自动降级 fallback）

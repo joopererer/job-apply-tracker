@@ -27,6 +27,7 @@ export interface ScrapedJob {
   salaryRange: string | null;
   language: JobLanguage;
   jdContent: string;
+  postedAt?: string | null;
 }
 
 /**
@@ -64,5 +65,6 @@ export interface RawJobData {
   location?: string | null;
   salaryRange?: string | null;
   jdContent?: string;
+  postedAt?: string | null;
 }
 

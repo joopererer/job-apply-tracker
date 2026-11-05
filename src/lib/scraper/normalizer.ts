@@ -193,3 +193,146 @@ export function extractSalaryRange(text: string): string | null {
   return null;
 }
 
+/**
+ * 将各种语言与格式的原始发布日期解析并转换为 ISO 日期字符串 (YYYY-MM-DD)
+ * 支持：
+ * 1. 标准 ISO 日期 (如 2026-10-25) 或法国日期 dd/mm/yyyy
+ * 2. 中文相对时间 (如 "1 周前"、"3 天前"、"刚刚"、"今天"、"昨天")
+ * 3. 法语相对时间 (如 "il y a 3 jours"、"publiée il y a 2j"、"hier"、"aujourd'hui")
+ * 4. 英语相对时间 (如 "2 days ago"、"1 week ago"、"just posted"、"yesterday")
+ */
+export function parsePostedDate(raw?: string | null): string | null {
+  if (!raw || typeof raw !== 'string') return null;
+  const text = raw.trim();
+  if (!text) return null;
+
+  const now = new Date();
+
+  const toIso = (d: Date): string => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  // 1. 标准 ISO 日期开头 (如 2026-10-25 或 2026-10-25T14:32:00Z)
+  const isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    const d = new Date(text);
+    if (!isNaN(d.getTime())) {
+      return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+    }
+  }
+
+  // 2. 法国/欧洲常见格式：dd/mm/yyyy 或 dd-mm-yyyy (如 "Publiée le 25/10/2026" 或 "25/10/2026")
+  const frDateMatch = text.match(/(?:publi[eé]e?\s*(?:le)?\s*:?\s*)?(\d{1,2})[\/\.-](\d{1,2})[\/\.-](\d{4})/i);
+  if (frDateMatch) {
+    const day = frDateMatch[1].padStart(2, '0');
+    const month = frDateMatch[2].padStart(2, '0');
+    const year = frDateMatch[3];
+    return `${year}-${month}-${day}`;
+  }
+
+  const lower = stripDiacritics(text).toLowerCase();
+
+  // 3. 极速词：今天 / 刚刚 / 昨天 / hier
+  if (
+    /^(aujourd'hui|aujourdhui|today|刚刚|今天|just posted)$/i.test(lower) ||
+    /\b(aujourd'hui|aujourdhui|today|刚刚|今天|just posted)\b/i.test(lower)
+  ) {
+    return toIso(now);
+  }
+
+  if (/^(hier|yesterday|昨天)$/i.test(lower) || /\b(hier|yesterday|昨天)\b/i.test(lower)) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 1);
+    return toIso(d);
+  }
+
+  if (/^(avant-hier|前天)$/i.test(lower) || /\b(avant-hier|前天)\b/i.test(lower)) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 2);
+    return toIso(d);
+  }
+
+  // 4. 中文相对时间：如 "(\d+)\s*(分钟|小时|天|周|个月)前"
+  const zhMatch = text.match(/(\d+)\s*(分钟|小时|天|周|个月|月)\s*前/);
+  if (zhMatch) {
+    const count = parseInt(zhMatch[1], 10);
+    const unit = zhMatch[2];
+    const d = new Date(now);
+    if (unit === '分钟') {
+      d.setMinutes(d.getMinutes() - count);
+    } else if (unit === '小时') {
+      d.setHours(d.getHours() - count);
+    } else if (unit === '天') {
+      d.setDate(d.getDate() - count);
+    } else if (unit === '周') {
+      d.setDate(d.getDate() - count * 7);
+    } else if (unit === '个月' || unit === '月') {
+      d.setMonth(d.getMonth() - count);
+    }
+    return toIso(d);
+  }
+
+  // 5. 法语相对时间：
+  // "il y a (\d+)\s*(minute|heure|jour|semaine|mois)s?"
+  // 或 "publiee il y a (\d+)\s*j" 或 "il y a plus de (\d+)\s*jours"
+  const frRelMatch = lower.match(
+    /(?:publiee?\s+)?(?:il\s+y\s+a\s+(?:plus\s+de\s+)?)(\d+)\s*(minute|heure|jour|semaine|mois|j|m|h)s?/i
+  );
+  if (frRelMatch) {
+    const count = parseInt(frRelMatch[1], 10);
+    const unit = frRelMatch[2];
+    const d = new Date(now);
+    if (unit === 'minute' || unit === 'm') {
+      d.setMinutes(d.getMinutes() - count);
+    } else if (unit === 'heure' || unit === 'h') {
+      d.setHours(d.getHours() - count);
+    } else if (unit === 'jour' || unit === 'j') {
+      d.setDate(d.getDate() - count);
+    } else if (unit === 'semaine') {
+      d.setDate(d.getDate() - count * 7);
+    } else if (unit === 'mois') {
+      d.setMonth(d.getMonth() - count);
+    }
+    return toIso(d);
+  }
+
+  // 6. 英语相对时间：
+  // "(?:reposted\s+)?(\d+)\s*(minute|hour|day|week|month)s?\s*ago"
+  // 或 "posted (\d+)\s*(day|week|month)s?\s*ago"
+  const enRelMatch = lower.match(
+    /(?:(?:re)?posted\s+)?(\d+)\s*(minute|hour|day|week|month)s?\s*ago/i
+  );
+  if (enRelMatch) {
+    const count = parseInt(enRelMatch[1], 10);
+    const unit = enRelMatch[2];
+    const d = new Date(now);
+    if (unit === 'minute') {
+      d.setMinutes(d.getMinutes() - count);
+    } else if (unit === 'hour') {
+      d.setHours(d.getHours() - count);
+    } else if (unit === 'day') {
+      d.setDate(d.getDate() - count);
+    } else if (unit === 'week') {
+      d.setDate(d.getDate() - count * 7);
+    } else if (unit === 'month') {
+      d.setMonth(d.getMonth() - count);
+    }
+    return toIso(d);
+  }
+
+  // 7. 特殊简写：如 LinkedIn 中文界面的 "的时间: 1 周前" 或 "1 周前" (已由 zhMatch 处理)
+  // 或 "30+ days ago" / "30+ jours"
+  const plusMatch = lower.match(/(\d+)\+\s*(?:days?|jours?)\s*(?:ago)?/i);
+  if (plusMatch) {
+    const count = parseInt(plusMatch[1], 10);
+    const d = new Date(now);
+    d.setDate(d.getDate() - count);
+    return toIso(d);
+  }
+
+  return null;
+}
+

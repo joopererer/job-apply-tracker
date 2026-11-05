@@ -42,6 +42,7 @@ function ShareContent() {
   const [language, setLanguage] = useState<'FR' | 'EN'>('FR');
   const [location, setLocation] = useState('');
   const [salaryRange, setSalaryRange] = useState('');
+  const [postedAt, setPostedAt] = useState('');
   const [notes, setNotes] = useState('');
   const [hrContact, setHrContact] = useState('');
 
@@ -96,6 +97,7 @@ function ShareContent() {
         setLanguage(job.language || 'FR');
         setLocation(job.location || '');
         setSalaryRange(job.salaryRange || '');
+        setPostedAt(job.postedAt || '');
       } catch (err: any) {
         setError(err.message || '网络异常或解析出错');
       } finally {
@@ -119,6 +121,7 @@ function ShareContent() {
         language,
         location: location || null,
         salaryRange: salaryRange || null,
+        postedAt: postedAt || null,
         notes: notes || null,
         hrContact: hrContact ? { phone: hrContact, raw: hrContact } : null,
         status: 'APPLIED',
@@ -399,7 +402,7 @@ function ShareContent() {
                 </div>
               </div>
 
-              {/* 地点与薪资 */}
+              {/* 地点与薪资与发布日期 */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-400 mb-1">
@@ -429,6 +432,19 @@ function ShareContent() {
                     className="w-full px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">
+                  职位发布日期 (Posted Date)
+                </label>
+                <input
+                  type="text"
+                  value={postedAt}
+                  placeholder="如: 2026-10-25 或 1 周前"
+                  onChange={(e) => setPostedAt(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-slate-800/80 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500"
+                />
               </div>
 
               {/* HR 联系信息与备注 */}

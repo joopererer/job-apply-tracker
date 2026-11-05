@@ -88,6 +88,7 @@ export default function HomePage() {
   const [editLang, setEditLang] = useState<'FR' | 'EN'>('FR');
   const [editLocation, setEditLocation] = useState('');
   const [editSalary, setEditSalary] = useState('');
+  const [editPostedAt, setEditPostedAt] = useState('');
   const [editHr, setEditHr] = useState('');
   const [editNotes, setEditNotes] = useState('');
 
@@ -201,6 +202,7 @@ export default function HomePage() {
       setEditLang(job.language || 'FR');
       setEditLocation(job.location || '');
       setEditSalary(job.salaryRange || '');
+      setEditPostedAt(job.postedAt || '');
     } catch (err: any) {
       setParseError(err.message || '网络连接或解析异常');
     } finally {
@@ -221,6 +223,7 @@ export default function HomePage() {
         language: editLang,
         location: editLocation || null,
         salaryRange: editSalary || null,
+        postedAt: editPostedAt || null,
         notes: editNotes || null,
         hrContact: editHr ? { phone: editHr, raw: editHr } : null,
         status: 'APPLIED',
@@ -593,10 +596,23 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 mb-1">
-                      HR 联系电话/姓名 (便于后续急救反查)
+                      发布日期 (Posted Date)
+                    </label>
+                    <input
+                      type="text"
+                      value={editPostedAt}
+                      placeholder="如: 2026-10-25 或 1 周前"
+                      onChange={(e) => setEditPostedAt(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1">
+                      HR 联系电话/姓名 (便于反查)
                     </label>
                     <input
                       type="text"
@@ -614,7 +630,7 @@ export default function HomePage() {
                     <input
                       type="text"
                       value={editNotes}
-                      placeholder="如: 内推员工姓名、自荐信版本号..."
+                      placeholder="如: 内推员工姓名、自荐信版本..."
                       onChange={(e) => setEditNotes(e.target.value)}
                       className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500"
                     />
@@ -827,6 +843,15 @@ export default function HomePage() {
                       {app.salary_range && (
                         <div className="flex items-center gap-1 text-emerald-400 font-semibold">
                           <span>💰 {app.salary_range}</span>
+                        </div>
+                      )}
+                      {(app.posted_at || app.postedAt) && (
+                        <div className="flex items-center gap-1 text-slate-400">
+                          <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                          <span>
+                            发布于 {app.posted_at || app.postedAt} (
+                            {formatDaysAgo(app.posted_at || app.postedAt || '')})
+                          </span>
                         </div>
                       )}
                       {hrText && (

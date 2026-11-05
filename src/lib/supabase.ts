@@ -8,6 +8,8 @@ export const supabase = createClient(supabaseUrl, supabaseKey);
 export interface ApplicationRecord {
   id: string;
   applied_at: string;
+  posted_at?: string | null;
+  postedAt?: string | null;
   status: string;
   notes: string | null;
   platform: string;

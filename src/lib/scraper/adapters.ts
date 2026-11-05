@@ -13,6 +13,7 @@ import {
   extractSalaryRange,
   normalizeCompany,
   normalizeTitle,
+  parsePostedDate,
   stripDiacritics,
 } from './normalizer';
 
@@ -385,6 +386,9 @@ function extractJobPostingFromJsonLd($: cheerio.CheerioAPI): RawJobData | null {
         // 提取薪资
         const salaryRange = formatBaseSalary(jobPosting.baseSalary);
 
+        // 提取发布日期
+        const postedAt = parsePostedDate(jobPosting.datePosted);
+
         // 提取描述正文
         let jdContent = '';
         if (typeof jobPosting.description === 'string') {
@@ -397,6 +401,7 @@ function extractJobPostingFromJsonLd($: cheerio.CheerioAPI): RawJobData | null {
           contractTypeRaw,
           location,
           salaryRange,
+          postedAt,
           jdContent,
         };
       }
@@ -442,8 +447,38 @@ function extractFromMetaAndText(
     result.salaryRange = detectedSalary;
   }
 
+  // 尝试提取发布日期
+  if ($) {
+    const metaDate =
+      $('meta[property="article:published_time"]').attr('content') ||
+      $('meta[name="date"]').attr('content') ||
+      $('meta[property="og:updated_time"]').attr('content') ||
+      $('.date-publication').text().trim() ||
+      $('.card-offer__date').text().trim();
+    if (metaDate) {
+      const parsed = parsePostedDate(metaDate);
+      if (parsed) result.postedAt = parsed;
+    }
+  }
+  if (!result.postedAt && combinedText) {
+    const dateMatch =
+      combinedText.match(/(?:publi[eé]e?\s*(?:le)?\s*:?\s*)?(\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{4})/i) ||
+      combinedText.match(/il\s+y\s+a\s+\d+\s*(?:jour|semaine|mois|heure|minute)s?/i) ||
+      combinedText.match(/\b\d+\s*(?:day|week|month|hour)s?\s*ago\b/i) ||
+      combinedText.match(/\d+\s*(?:天|周|个月|月|小时)\s*前/);
+    if (dateMatch) {
+      const parsed = parsePostedDate(dateMatch[0]);
+      if (parsed) result.postedAt = parsed;
+    }
+  }
+
   // 2. 从 HTML title 中尝试提取标题与公司 (如: "Développeur React chez Doctolib - Paris" 或 "Ingénieur Logiciel (H/F) - Alan")
-  if (pageTitle) {
+  // 排除 Indeed 搜索列表标题如 "Emplois : Flutter - Paris | Indeed.com"
+  const isSearchListPage =
+    /^Emplois?\s*:/i.test(pageTitle) ||
+    /Job Search\s*\|\s*Indeed/i.test(pageTitle);
+
+  if (pageTitle && !isSearchListPage) {
     // 常见结构: "Titre chez Entreprise", "Titre - Entreprise", "Titre | Entreprise"
     if (pageTitle.includes(' chez ')) {
       const parts = pageTitle.split(' chez ');
@@ -575,6 +610,9 @@ export function parseFromHtmlOrText(input: ScrapeInput): ScrapedJob {
   if (!rawData.jdContent) {
     rawData.jdContent = fallbackData.jdContent || rawText;
   }
+  if (!rawData.postedAt && fallbackData.postedAt) {
+    rawData.postedAt = fallbackData.postedAt;
+  }
 
   // 4. 再次对整个正文、rawText 或 HTML 进行薪资正则补全提取
   if (!rawData.salaryRange) {
@@ -621,5 +659,6 @@ export function parseFromHtmlOrText(input: ScrapeInput): ScrapedJob {
     salaryRange: rawData.salaryRange || null,
     language,
     jdContent: rawData.jdContent || '',
+    postedAt: rawData.postedAt || null,
   };
 }

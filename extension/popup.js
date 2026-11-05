@@ -24,7 +24,9 @@ const valContractEl = document.getElementById('val-contract');
 const valLangEl = document.getElementById('val-lang');
 const valLocationEl = document.getElementById('val-location');
 const valSalaryEl = document.getElementById('val-salary');
+const valPostedEl = document.getElementById('val-posted');
 
+const inputPostedEl = document.getElementById('input-posted');
 const inputHrEl = document.getElementById('input-hr');
 const inputNotesEl = document.getElementById('input-notes');
 
@@ -36,41 +38,195 @@ const btnOpenBoardEl = document.getElementById('btn-open-board');
 // 注入当前活动标签页执行的 DOM 提取函数
 function extractPageJobData() {
   const url = window.location.href;
-  const title = document.title;
+  const docTitle = document.title;
+  const domExtracted = {};
 
-  // 1. 收集页面内所有 JSON-LD 标签内容
-  const jsonLdElements = Array.from(
-    document.querySelectorAll('script[type="application/ld+json"]')
-  );
-  const jsonLdHtml = jsonLdElements
-    .map((el) => `<script type="application/ld+json">${el.textContent || ''}</script>`)
-    .join('\n');
+  const isIndeed = /indeed\./i.test(url);
+  const isLinkedIn = /linkedin\.com/i.test(url);
+  const isApec = /apec\.fr/i.test(url);
+  const isHelloWork = /hellowork\.com/i.test(url);
 
-  // 2. 针对五大平台详情容器的专属选择器
+  // -------------------------------------------------------------
+  // 1. Indeed 分栏与详情页专属提取 (解决 .../jobs?q=...&vjk=xxx 抓错问题)
+  // -------------------------------------------------------------
+  if (isIndeed) {
+    const vjkMatch = url.match(/[?&](?:vjk|jk)=([a-zA-Z0-9]+)/i);
+    const hasVjk = !!vjkMatch;
+    const vjk = vjkMatch ? vjkMatch[1] : null;
+
+    // 优先限定在右侧详情容器中查找
+    const rightPane =
+      document.querySelector('.jobsearch-RightPane') ||
+      document.querySelector('.jobsearch-ViewJobLayout--embedded') ||
+      document.querySelector('.jobsearch-JobComponent') ||
+      document.querySelector('#jobsearch-ViewJobButtons-container')?.closest('.jobsearch-ViewJobLayout') ||
+      document;
+
+    // 职位标题严格取 [data-testid="jobsearch-JobInfoHeader-title"], h2.jobsearch-JobInfoHeader-title
+    const titleEl = rightPane.querySelector(
+      '[data-testid="jobsearch-JobInfoHeader-title"], h2.jobsearch-JobInfoHeader-title'
+    );
+    if (titleEl) {
+      // 克隆节点并剔除内部的 "- job post" 等隐藏 span 文本
+      const clone = titleEl.cloneNode(true);
+      clone.querySelectorAll('.visually-hidden, span[aria-hidden="true"]').forEach((el) => el.remove());
+      const cleanTitle = (clone.textContent || titleEl.innerText || '')
+        .replace(/-?\s*job\s*post/gi, '')
+        .trim();
+      if (cleanTitle) {
+        domExtracted.titleRaw = cleanTitle;
+      }
+    }
+
+    // 公司名
+    const companyEl = rightPane.querySelector(
+      '[data-testid="inlineHeader-companyName"], .jobsearch-JobInfoHeader-companyName'
+    );
+    if (companyEl) {
+      domExtracted.companyRaw = (companyEl.textContent || companyEl.innerText || '').trim();
+    }
+
+    // 城市 / 工作地点
+    const locEl = rightPane.querySelector(
+      '[data-testid="inlineHeader-companyLocation"], [data-testid="job-location"], [data-testid="jobsearch-JobInfoHeader-companyLocation"]'
+    );
+    if (locEl) {
+      domExtracted.location = (locEl.textContent || locEl.innerText || '').trim();
+    }
+
+    // 发布日期
+    const dateEl = rightPane.querySelector(
+      '[data-testid="myJobsStateDate"], .jobsearch-JobMetadataFooter, [data-testid="hiring-insights"]'
+    );
+    if (dateEl) {
+      const dateText = (dateEl.innerText || dateEl.textContent || '').trim();
+      const match = dateText.match(
+        /(?:publi[eé]e?\s+)?(?:il\s+y\s+a\s+[\w\s\+]+|just posted|today|hier|\d+\+?\s*(?:jours?|days?)\s*(?:ago)?)/i
+      );
+      if (match) {
+        domExtracted.postedAt = match[0].trim();
+      }
+    }
+
+    if (hasVjk && vjk) {
+      domExtracted.externalJobId = vjk;
+      domExtracted.cleanUrl = `https://fr.indeed.com/viewjob?jk=${vjk}`;
+    }
+  }
+
+  // -------------------------------------------------------------
+  // 2. LinkedIn 详情与分栏副标题提取 (解决城市与发布时间漏抓问题)
+  // -------------------------------------------------------------
+  if (isLinkedIn) {
+    // 标题
+    const liTitleEl = document.querySelector(
+      '.job-details-jobs-unified-top-card__job-title, h1.t-24, .jobs-unified-top-card__job-title'
+    );
+    if (liTitleEl) {
+      domExtracted.titleRaw = (liTitleEl.textContent || liTitleEl.innerText || '').trim();
+    }
+
+    // 公司
+    const liCompEl = document.querySelector(
+      '.job-details-jobs-unified-top-card__company-name, .jobs-unified-top-card__company-name, .topcard__org-name-link'
+    );
+    if (liCompEl) {
+      domExtracted.companyRaw = (liCompEl.textContent || liCompEl.innerText || '').trim();
+    }
+
+    // 副标题描述区 (包含城市、发布时间和申请人数，用 · 分隔)
+    const subContainer = document.querySelector(
+      '.job-details-jobs-unified-top-card__primary-description-container, .job-details-jobs-unified-top-card__tertiary-description-container, .jobs-unified-top-card__primary-description, .job-details-jobs-unified-top-card__primary-description'
+    );
+
+    if (subContainer) {
+      const fullText = (subContainer.innerText || subContainer.textContent || '').trim();
+      const parts = fullText.split(/·|\n/).map((s) => s.trim()).filter(Boolean);
+
+      // 第一个 · 之前是城市/地点
+      if (parts.length > 0 && !domExtracted.location) {
+        // 清理掉可能的 "由 xxx 发布" 等前缀
+        const locCandidate = parts[0]
+          .replace(/^(?:sur\s+place|hybride|a\s+distance|remote|temps\s+plein)\s*[-|•,]?\s*/i, '')
+          .trim();
+        domExtracted.location = locCandidate || parts[0];
+      }
+
+      // 查找包含时间特征词的片段
+      for (const part of parts) {
+        if (/前|时间|il y a|ago|heure|jour|semaine|mois|今天|hier|today|yesterday|reposted/i.test(part)) {
+          // 清洗形如 "的时间: 1 周前" -> "1 周前"
+          const cleanDate = part.replace(/^的时间:\s*/, '').trim();
+          domExtracted.postedAt = cleanDate;
+          break;
+        }
+      }
+    }
+
+    // 回退地点查找
+    if (!domExtracted.location) {
+      const tvmEl = document.querySelector('.tvm__text, .jobs-unified-top-card__bullet');
+      if (tvmEl) {
+        domExtracted.location = (tvmEl.textContent || tvmEl.innerText || '').trim();
+      }
+    }
+  }
+
+  // -------------------------------------------------------------
+  // 3. Apec 专属发布时间与字段补充
+  // -------------------------------------------------------------
+  if (isApec) {
+    const apecDateEl = document.querySelector('.date-publication, .card-offer__date');
+    if (apecDateEl) {
+      domExtracted.postedAt = (apecDateEl.textContent || apecDateEl.innerText || '').trim();
+    }
+  }
+
+  // -------------------------------------------------------------
+  // 4. HelloWork 专属发布时间补充
+  // -------------------------------------------------------------
+  if (isHelloWork) {
+    const hwDateEl = document.querySelector('[data-testid="job-meta-date"], .offer-header-date');
+    if (hwDateEl) {
+      domExtracted.postedAt = (hwDateEl.textContent || hwDateEl.innerText || '').trim();
+    }
+  }
+
+  // -------------------------------------------------------------
+  // 5. 收集 JSON-LD 标签内容 (Indeed 带 vjk 时忽略外层搜索列表 JSON-LD)
+  // -------------------------------------------------------------
+  let jsonLdHtml = '';
+  const isIndeedSearchWithVjk = isIndeed && url.includes('vjk=');
+  if (!isIndeedSearchWithVjk) {
+    const jsonLdElements = Array.from(
+      document.querySelectorAll('script[type="application/ld+json"]')
+    );
+    jsonLdHtml = jsonLdElements
+      .map((el) => `<script type="application/ld+json">${el.textContent || ''}</script>`)
+      .join('\n');
+  }
+
+  // 6. 详情正文容器提取
   const candidateSelectors = [
+    // Indeed 右侧
+    '.jobsearch-RightPane #jobDescriptionText',
+    '#jobDescriptionText',
+    '.jobsearch-JobComponent',
     // LinkedIn
     '.jobs-description__container',
     '.jobs-box__html-content',
     '.job-view-layout',
     '#job-details',
-    // Indeed
-    '#jobDescriptionText',
-    '.jobsearch-JobComponent',
-    '.jobsearch-jobDescriptionText',
     // Apec
     '.details-offer',
     '.box-offer',
-    '.main-content',
     // HelloWork
     '[data-testid="job-description"]',
     '.offer-description',
-    'section.content',
     // JobTeaser
     '[data-testid="job-offer-description"]',
-    '.JobOfferDescription',
-    // Welcome to the Jungle
+    // WTTJ
     '[data-testid="job-content"]',
-    // 通用备选
     'article',
     'main',
   ];
@@ -88,12 +244,14 @@ function extractPageJobData() {
     bodyContainerText = document.body ? document.body.innerText.slice(0, 4000) : '';
   }
 
-  // 3. 构建伪 HTML 文档，供 cheerio 优先解析 JSON-LD
+  // 构建传给服务端的标题：如果是 Indeed 搜索页且已提取到精准 titleRaw，绝不回退使用外层的 docTitle
+  const finalTitle = domExtracted.titleRaw || docTitle;
+
   const syntheticHtml = `
     <!DOCTYPE html>
     <html>
       <head>
-        <title>${title.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</title>
+        <title>${finalTitle.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</title>
         ${jsonLdHtml}
       </head>
       <body>
@@ -106,9 +264,10 @@ function extractPageJobData() {
 
   return {
     url,
-    title,
-    rawText: `${title}\n${bodyContainerText.slice(0, 3000)}`,
+    title: finalTitle,
+    rawText: `${finalTitle}\n${bodyContainerText.slice(0, 3000)}`,
     html: syntheticHtml,
+    domExtracted,
   };
 }
 
@@ -188,6 +347,16 @@ function renderResult(job, duplicates) {
   valLocationEl.textContent = job.location || '地点未注明';
   valSalaryEl.textContent = job.salaryRange || '薪资面议';
 
+  // 渲染发布日期
+  if (job.postedAt) {
+    valPostedEl.style.display = 'inline-block';
+    valPostedEl.textContent = `📅 ${job.postedAt}`;
+    inputPostedEl.value = job.postedAt;
+  } else {
+    valPostedEl.style.display = 'none';
+    inputPostedEl.value = '';
+  }
+
   // ⚠️ 查重结果渲染
   if (duplicates && duplicates.length > 0) {
     warningSectionEl.style.display = 'block';
@@ -234,6 +403,7 @@ async function saveApplication() {
   try {
     const payload = {
       ...currentParsedJob,
+      postedAt: inputPostedEl.value.trim() || currentParsedJob.postedAt || null,
       status: 'APPLIED',
       notes: inputNotesEl.value.trim() || null,
       hrContact: inputHrEl.value.trim() || null,
@@ -298,4 +468,3 @@ btnOpenBoardEl.addEventListener('click', () => {
 
 // 弹窗打开时立即执行
 document.addEventListener('DOMContentLoaded', runExtraction);
-

@@ -95,7 +95,9 @@ export async function POST(request: NextRequest) {
       hrContact = { raw: hrContact, phone: hrContact };
     }
 
-    const newRecord = {
+    const postedAt = body.posted_at || body.postedAt || null;
+
+    const newRecord: Record<string, any> = {
       platform: body.platform || 'OTHER',
       external_job_id: body.external_job_id ?? body.externalJobId ?? null,
       clean_url: body.clean_url || body.cleanUrl || '',
@@ -111,16 +113,29 @@ export async function POST(request: NextRequest) {
       status: body.status || 'APPLIED',
       notes: body.notes || null,
       hr_contact: hrContact,
+      posted_at: postedAt,
       applied_at:
         body.applied_at || body.appliedAt || new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('applications')
       .insert(newRecord)
       .select()
       .single();
+
+    // 容错：如果 Supabase 表尚未添加 posted_at 字段，自动移除并降级保存
+    if (error && error.message?.includes('posted_at')) {
+      delete newRecord.posted_at;
+      const retry = await supabase
+        .from('applications')
+        .insert(newRecord)
+        .select()
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
       return NextResponse.json(
@@ -170,6 +185,9 @@ export async function PATCH(request: NextRequest) {
     if (body.contract_type !== undefined || body.contractType !== undefined) {
       updates.contract_type = body.contract_type ?? body.contractType;
     }
+    if (body.posted_at !== undefined || body.postedAt !== undefined) {
+      updates.posted_at = body.posted_at ?? body.postedAt;
+    }
 
     // 更新 HR 联系方式
     if (body.hr_contact !== undefined || body.hrContact !== undefined) {
@@ -180,12 +198,24 @@ export async function PATCH(request: NextRequest) {
       updates.hr_contact = hr;
     }
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('applications')
       .update(updates)
       .eq('id', id)
       .select()
       .single();
+
+    if (error && error.message?.includes('posted_at')) {
+      delete updates.posted_at;
+      const retry = await supabase
+        .from('applications')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
       return NextResponse.json(
