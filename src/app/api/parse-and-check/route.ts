@@ -7,6 +7,7 @@ import {
   extractContractType,
   detectLanguage,
   isLikelyLocation,
+  cleanAndFormatJd,
 } from '@/lib/scraper';
 import { supabase, ApplicationRecord, DuplicateCheckResult } from '@/lib/supabase';
 
@@ -177,8 +178,9 @@ export async function POST(request: NextRequest) {
         domExtracted.companyRaw || parsedJob.companyRaw || '';
       const mergedTitleRaw =
         domExtracted.titleRaw || parsedJob.titleRaw || '';
-      const mergedJdContent =
-        domExtracted.jdContent || parsedJob.jdContent || '';
+      const mergedJdContent = cleanAndFormatJd(
+        domExtracted.jdContent || parsedJob.jdContent || ''
+      );
 
       parsedJob = {
         ...parsedJob,

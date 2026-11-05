@@ -398,6 +398,17 @@ function extractPageJobData() {
     bodyContainerText = document.body ? document.body.innerText.slice(0, 4000) : '';
   }
 
+  // 基础噪音过滤
+  if (bodyContainerText) {
+    bodyContainerText = bodyContainerText
+      .replace(
+        /\b(afficher plus|afficher moins|voir plus|voir moins|show more|show less|read more|signaler cette offre|report job)\b/gi,
+        ''
+      )
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
   // 构建传给服务端的标题：如果是 Indeed 搜索页且未提取到精准 titleRaw，绝不回退使用外层的 docTitle
   let finalTitle = domExtracted.titleRaw || '';
   if (!finalTitle && docTitle) {

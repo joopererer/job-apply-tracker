@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { normalizeCompany, normalizeTitle } from '@/lib/scraper';
+import { normalizeCompany, normalizeTitle, cleanAndFormatJd } from '@/lib/scraper';
 
 /**
  * GET /api/applications
@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
 
 /**
  * PATCH /api/applications
- * 快速更新职位状态 (如 APPLIED -> HR_CALL, REJECTED) 及备注/联系人笔记
+ * 完整更新职位记录的所有字段（公司、职位、合同、地点、薪资、状态、备注、JD等）
  */
 export async function PATCH(request: NextRequest) {
   try {
@@ -176,26 +176,61 @@ export async function PATCH(request: NextRequest) {
       updated_at: new Date().toISOString(),
     };
 
-    if (body.status !== undefined) updates.status = body.status;
-    if (body.notes !== undefined) updates.notes = body.notes;
+    // 1. 公司名与标准化
+    if (body.company_raw !== undefined || body.companyRaw !== undefined) {
+      const cRaw = (body.company_raw ?? body.companyRaw ?? '').trim();
+      updates.company_raw = cRaw;
+      updates.company_norm = normalizeCompany(cRaw);
+    }
+
+    // 2. 职位名与标准化
+    if (body.title_raw !== undefined || body.titleRaw !== undefined) {
+      const tRaw = (body.title_raw ?? body.titleRaw ?? '').trim();
+      updates.title_raw = tRaw;
+      updates.title_norm = normalizeTitle(tRaw);
+    }
+
+    // 3. 合同类型与平台
+    if (body.contract_type !== undefined || body.contractType !== undefined) {
+      updates.contract_type = body.contract_type ?? body.contractType;
+    }
+    if (body.platform !== undefined) updates.platform = body.platform;
+    if (body.language !== undefined) updates.language = body.language;
+
+    // 4. 地点与薪资
     if (body.location !== undefined) updates.location = body.location;
     if (body.salary_range !== undefined || body.salaryRange !== undefined) {
       updates.salary_range = body.salary_range ?? body.salaryRange;
     }
-    if (body.contract_type !== undefined || body.contractType !== undefined) {
-      updates.contract_type = body.contract_type ?? body.contractType;
-    }
+
+    // 5. 状态与时间
+    if (body.status !== undefined) updates.status = body.status;
     if (body.posted_at !== undefined || body.postedAt !== undefined) {
       updates.posted_at = body.posted_at ?? body.postedAt;
     }
+    if (body.applied_at !== undefined || body.appliedAt !== undefined) {
+      updates.applied_at = body.applied_at ?? body.appliedAt;
+    }
 
-    // 更新 HR 联系方式
+    // 6. 链接与备注
+    if (body.clean_url !== undefined || body.cleanUrl !== undefined) {
+      updates.clean_url = body.clean_url ?? body.cleanUrl;
+    }
+    if (body.notes !== undefined) updates.notes = body.notes;
+
+    // 7. 更新 HR 联系方式
     if (body.hr_contact !== undefined || body.hrContact !== undefined) {
       let hr = body.hr_contact ?? body.hrContact;
       if (typeof hr === 'string') {
         hr = { raw: hr, phone: hr };
       }
       updates.hr_contact = hr;
+    }
+
+    // 8. JD 正文内容格式化
+    if (body.jd_content !== undefined || body.jdContent !== undefined) {
+      const jdRaw = body.jd_content ?? body.jdContent ?? '';
+      updates.jd_content = cleanAndFormatJd(jdRaw);
     }
 
     let { data, error } = await supabase
@@ -233,5 +268,61 @@ export async function PATCH(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * DELETE /api/applications
+ * 删除指定的求职记录 (支持 query param ?id=xxx 或 body { id })
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    let id = searchParams.get('id');
+
+    if (!id) {
+      const body = await request.json().catch(() => ({}));
+      id = body?.id;
+    }
+
+    if (!id || typeof id !== 'string') {
+      return NextResponse.json(
+        { error: 'Missing required field: id' },
+        { status: 400 }
+      );
+    }
+
+    const { error } = await supabase
+      .from('applications')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      deletedId: id,
+    });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err?.message || 'Failed to delete application' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PATCH, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
 }
 

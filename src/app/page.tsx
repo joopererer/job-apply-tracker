@@ -12,13 +12,16 @@ import {
   ChevronUp,
   Clipboard,
   Clock,
+  Copy,
   ExternalLink,
   Filter,
   Flame,
   Globe,
   Loader2,
   MapPin,
+  Maximize2,
   MessageSquare,
+  Pencil,
   Phone,
   PhoneCall,
   Plus,
@@ -34,6 +37,8 @@ import {
 } from 'lucide-react';
 import { ScrapedJob } from '@/lib/scraper';
 import { ApplicationRecord, DuplicateCheckResult } from '@/lib/supabase';
+import JdViewerModal, { FormattedJdRenderer } from '@/components/JdViewerModal';
+import ApplicationEditModal from '@/components/ApplicationEditModal';
 
 // 格式化投递相对时间
 function formatDaysAgo(isoDate: string): string {
@@ -91,6 +96,21 @@ export default function HomePage() {
   const [editPostedAt, setEditPostedAt] = useState('');
   const [editHr, setEditHr] = useState('');
   const [editNotes, setEditNotes] = useState('');
+
+  // 全屏沉浸式 JD 阅读弹窗状态
+  const [viewerJob, setViewerJob] = useState<ApplicationRecord | null>(null);
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
+
+  // 职位信息编辑弹窗状态
+  const [editingJob, setEditingJob] = useState<ApplicationRecord | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+
+  // 删除确认状态 (记录正在等待二次确认的 id)
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // 卡片内快速复制 JD 状态
+  const [copiedJdId, setCopiedJdId] = useState<string | null>(null);
 
   // 搜索框快捷键 Ref
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -269,6 +289,56 @@ export default function HomePage() {
       }
     } catch {
       alert('状态更新失败，请稍后重试');
+    }
+  };
+
+  // 8. 打开全屏沉浸式 JD 阅读弹窗
+  const handleOpenJdViewer = (job: ApplicationRecord) => {
+    setViewerJob(job);
+    setIsViewerOpen(true);
+  };
+
+  // 9. 打开编辑弹窗
+  const handleOpenEdit = (job: ApplicationRecord) => {
+    setEditingJob(job);
+    setIsEditOpen(true);
+  };
+
+  // 10. 编辑保存后的乐观更新
+  const handleJobSaved = (updatedJob: ApplicationRecord) => {
+    setApplications((prev) =>
+      prev.map((app) => (app.id === updatedJob.id ? updatedJob : app))
+    );
+  };
+
+  // 11. 删除职位记录
+  const handleDeleteApplication = async (id: string) => {
+    try {
+      setIsDeleting(true);
+      const res = await fetch(`/api/applications?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || '删除失败');
+      }
+      setApplications((prev) => prev.filter((a) => a.id !== id));
+      setDeletingId(null);
+    } catch (err: any) {
+      alert(`删除失败: ${err.message}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // 12. 复制卡片内 JD 全文
+  const handleCopyCardJd = async (id: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedJdId(id);
+      setTimeout(() => setCopiedJdId(null), 2000);
+    } catch {
+      // 容错
     }
   };
 
@@ -818,13 +888,57 @@ export default function HomePage() {
                         </h3>
                       </div>
 
-                      {/* 投递时间与状态标识 */}
-                      <div className="text-right shrink-0 space-y-1">
-                        <span
-                          className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold border ${statusMeta.color}`}
-                        >
-                          {statusMeta.label}
-                        </span>
+                      {/* 投递时间与状态标识 + 编辑/删除操作按钮 */}
+                      <div className="text-right shrink-0 space-y-2">
+                        <div className="flex items-center gap-1.5 justify-end">
+                          <span
+                            className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold border ${statusMeta.color}`}
+                          >
+                            {statusMeta.label}
+                          </span>
+
+                          {/* 编辑按钮 */}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(app)}
+                            className="p-1 rounded-lg text-slate-400 hover:text-blue-400 hover:bg-slate-800 transition"
+                            title="编辑此职位信息"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* 删除按钮与二次确认 */}
+                          {deletingId === app.id ? (
+                            <div className="inline-flex items-center gap-1 bg-rose-950/80 border border-rose-800 px-1.5 py-0.5 rounded-lg text-[10px] animate-in fade-in">
+                              <span className="text-rose-300 font-bold">确定删除?</span>
+                              <button
+                                type="button"
+                                disabled={isDeleting}
+                                onClick={() => handleDeleteApplication(app.id)}
+                                className="px-1.5 py-0.5 bg-rose-600 hover:bg-rose-500 text-white rounded font-bold transition"
+                              >
+                                {isDeleting ? '...' : '是'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDeletingId(null)}
+                                className="px-1.5 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded font-bold transition"
+                              >
+                                否
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setDeletingId(app.id)}
+                              className="p-1 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition"
+                              title="删除此投递记录"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+
                         <div className="flex items-center gap-1 text-[11px] text-slate-400 justify-end">
                           <Clock className="w-3 h-3 text-slate-500" />
                           <span>{formatDaysAgo(app.applied_at)}</span>
@@ -880,30 +994,79 @@ export default function HomePage() {
                       </div>
                     )}
 
-                    {/* 可折叠展开的原始 JD 摘要 */}
+                    {/* 可折叠展开的结构化 JD 预览与全屏阅读器 */}
                     {app.jd_content && (
                       <div className="pt-1">
-                        <button
-                          type="button"
-                          onClick={() => toggleExpandJd(app.id)}
-                          className="text-xs text-slate-400 hover:text-slate-200 inline-flex items-center gap-1 transition"
-                        >
-                          {isExpanded ? (
-                            <>
-                              <span>收起岗位 JD 正文</span>
-                              <ChevronUp className="w-3.5 h-3.5" />
-                            </>
-                          ) : (
-                            <>
-                              <span>展开完整 JD 正文与要求</span>
-                              <ChevronDown className="w-3.5 h-3.5" />
-                            </>
-                          )}
-                        </button>
+                        <div className="flex items-center justify-between gap-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleExpandJd(app.id)}
+                            className="text-xs text-slate-400 hover:text-slate-200 inline-flex items-center gap-1 transition"
+                          >
+                            {isExpanded ? (
+                              <>
+                                <span>收起岗位 JD 正文</span>
+                                <ChevronUp className="w-3.5 h-3.5" />
+                              </>
+                            ) : (
+                              <>
+                                <span>展开完整 JD 正文与要求</span>
+                                <ChevronDown className="w-3.5 h-3.5" />
+                              </>
+                            )}
+                          </button>
+
+                          {/* 快捷全屏阅读入口 */}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenJdViewer(app)}
+                            className="text-xs text-blue-400 hover:text-blue-300 inline-flex items-center gap-1 transition font-semibold"
+                          >
+                            <Maximize2 className="w-3 h-3" />
+                            <span>⛶ 全屏阅读 JD</span>
+                          </button>
+                        </div>
 
                         {isExpanded && (
-                          <div className="mt-2 p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 whitespace-pre-line max-h-64 overflow-y-auto font-mono leading-relaxed">
-                            {app.jd_content}
+                          <div className="mt-2.5 p-3.5 rounded-2xl bg-slate-950 border border-slate-800 text-xs text-slate-300 space-y-2">
+                            {/* 工具栏：全屏阅读 + 复制 */}
+                            <div className="flex items-center justify-between border-b border-slate-800/80 pb-2 mb-2">
+                              <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1">
+                                <Sparkles className="w-3 h-3 text-blue-400" />
+                                JD 智能排版预览
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyCardJd(app.id, app.jd_content || '')}
+                                  className="px-2 py-0.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-[11px] font-bold text-slate-300 border border-slate-700/60 transition flex items-center gap-1"
+                                >
+                                  {copiedJdId === app.id ? (
+                                    <>
+                                      <Check className="w-3 h-3 text-emerald-400" />
+                                      <span className="text-emerald-400">已复制!</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="w-3 h-3 text-slate-400" />
+                                      <span>复制全文</span>
+                                    </>
+                                  )}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenJdViewer(app)}
+                                  className="px-2 py-0.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-[11px] font-bold text-blue-300 border border-blue-500/30 transition flex items-center gap-1"
+                                >
+                                  <Maximize2 className="w-3 h-3" />
+                                  <span>全屏沉浸阅读</span>
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="max-h-72 overflow-y-auto pr-1">
+                              <FormattedJdRenderer content={app.jd_content} />
+                            </div>
                           </div>
                         )}
                       </div>
@@ -946,6 +1109,21 @@ export default function HomePage() {
           )}
         </section>
       </main>
+
+      {/* 全屏沉浸式 JD 阅读弹窗 */}
+      <JdViewerModal
+        isOpen={isViewerOpen}
+        onClose={() => setIsViewerOpen(false)}
+        job={viewerJob}
+      />
+
+      {/* 职位信息完整编辑弹窗 */}
+      <ApplicationEditModal
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
+        job={editingJob}
+        onSaved={handleJobSaved}
+      />
     </div>
   );
 }

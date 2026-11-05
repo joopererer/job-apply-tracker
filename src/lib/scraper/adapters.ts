@@ -8,6 +8,7 @@ import {
   ScrapeInput,
 } from './types';
 import {
+  cleanAndFormatJd,
   detectLanguage,
   extractContractType,
   extractSalaryRange,
@@ -371,14 +372,11 @@ function formatJobLocation(jobLocation: any): string | null {
 }
 
 /**
- * 将 HTML 富文本转换为干净的换行纯文本
+ * 将 HTML 富文本转换为干净规整的纯文本
  */
 function htmlToPlainText(html: string): string {
   if (!html) return '';
-  const $ = cheerio.load(html);
-  // 在块级元素后补充换行
-  $('p, br, div, li, h1, h2, h3, h4, tr').after('\n');
-  return $.text().replace(/\n{3,}/g, '\n\n').trim();
+  return cleanAndFormatJd(html);
 }
 
 /**
@@ -752,7 +750,7 @@ export function parseFromHtmlOrText(input: ScrapeInput): ScrapedJob {
     location: rawData.location || null,
     salaryRange: rawData.salaryRange || null,
     language,
-    jdContent: rawData.jdContent || '',
+    jdContent: cleanAndFormatJd(rawData.jdContent || ''),
     postedAt: rawData.postedAt || null,
   };
 }

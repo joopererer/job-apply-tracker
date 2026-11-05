@@ -336,3 +336,104 @@ export function parsePostedDate(raw?: string | null): string | null {
   return null;
 }
 
+/**
+ * 招聘网页常见交互与报告噪音词 (忽略大小写)
+ */
+const JD_NOISE_REGEX =
+  /\b(afficher plus|afficher moins|voir plus|voir moins|show more|show less|read more|signaler cette offre|report job)\b/gi;
+
+/**
+ * 常见 HTML 实体解码映射
+ */
+const HTML_ENTITIES: Record<string, string> = {
+  '&nbsp;': ' ',
+  '&#160;': ' ',
+  '&amp;': '&',
+  '&#38;': '&',
+  '&lt;': '<',
+  '&#60;': '<',
+  '&gt;': '>',
+  '&#62;': '>',
+  '&quot;': '"',
+  '&#34;': '"',
+  '&#39;': "'",
+  '&apos;': "'",
+  '&euro;': '€',
+  '&#8364;': '€',
+  '&bull;': '•',
+  '&#8226;': '•',
+  '&middot;': '·',
+  '&#183;': '·',
+  '&copy;': '©',
+  '&reg;': '®',
+  '&trade;': '™',
+  '&hellip;': '...',
+  '&#8230;': '...',
+  '&ndash;': '–',
+  '&#8211;': '–',
+  '&mdash;': '—',
+  '&#8212;': '—',
+};
+
+/**
+ * JD 结构化清洗与格式化引擎：
+ * 1. 将 HTML 标签结构（常见于 JSON-LD description）转换为 Markdown 风格的纯文本换行与列表
+ * 2. 解码所有常见 HTML 实体（&nbsp;, &amp;, &euro; 等）
+ * 3. 剥离 "Afficher plus", "Signaler cette offre" 等交互噪音残留
+ * 4. 智能断行：将粘连在段落中间的列表项 (•, -, *) 转换为清晰的独立行
+ * 5. 压缩多余连续空行，保持段落结构紧凑优雅
+ */
+export function cleanAndFormatJd(rawHtmlOrText: string): string {
+  if (!rawHtmlOrText || typeof rawHtmlOrText !== 'string') return '';
+
+  let text = rawHtmlOrText;
+
+  // 1. 如果包含 HTML 标签结构，先做语义化标签到换行/列表符号的转换
+  if (/<[a-z][\s\S]*>/i.test(text)) {
+    // 列表项转换为带圆点的行
+    text = text.replace(/<li[^>]*>/gi, '\n• ');
+    text = text.replace(/<\/li>/gi, '\n');
+
+    // 块级元素和换行转换为双换行
+    text = text.replace(/<br\s*\/?>/gi, '\n');
+    text = text.replace(/<\/(p|div|section|article|h[1-6]|tr)>/gi, '\n\n');
+    text = text.replace(/<(h[1-6])[^>]*>/gi, '\n\n');
+
+    // 移除其余所有 HTML 标签
+    text = text.replace(/<[^>]+>/g, '');
+  }
+
+  // 2. 解码 HTML 实体
+  for (const [entity, replacement] of Object.entries(HTML_ENTITIES)) {
+    text = text.split(entity).join(replacement);
+  }
+  // 处理未列出的十进制数字实体 &#123;
+  text = text.replace(/&#(\d+);/g, (_, dec) => {
+    try {
+      return String.fromCharCode(parseInt(dec, 10));
+    } catch {
+      return _;
+    }
+  });
+
+  // 3. 移除招聘网页常见交互与报告噪音残留词
+  text = text.replace(JD_NOISE_REGEX, '');
+
+  // 4. 处理粘连在句子中间的无换行列表符号 (如 "équipe. • Autonomie" -> "équipe.\n• Autonomie")
+  text = text.replace(/([.!?;:，。！？])\s+([•\-\*])\s+/g, '$1\n$2 ');
+
+  // 5. 按行规整：去除每行首尾空白，保留缩进标记，清理连续空行
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    // 过滤零宽字符和全空白行
+    .map((line) => line.replace(/^[\u200B\u200C\u200D\uFEFF]/, ''));
+
+  // 重新合并并压缩多余空行 (最多连续保留 1 个空行，即 \n\n)
+  let result = lines.join('\n');
+  result = result.replace(/\n{3,}/g, '\n\n').trim();
+
+  return result;
+}
+
+
