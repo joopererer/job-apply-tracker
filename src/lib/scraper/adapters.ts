@@ -539,6 +539,16 @@ function extractFromMetaAndText(
           result.location = locCandidate;
         }
       }
+    } else if (/正在\s+[^|—–]+?\s*招聘/.test(pageTitle)) {
+      // 常见结构 D (中文 LinkedIn): "Company 正在 Location 招聘 Title | LinkedIn"
+      const zhMatch = pageTitle.match(/正在\s+([^|—–]+?)\s*招聘/);
+      if (zhMatch && zhMatch[1]) {
+        result.location = zhMatch[1].trim();
+      }
+      const beforeZh = pageTitle.split('正在')[0]?.trim();
+      if (beforeZh) result.company = beforeZh;
+      const afterZh = pageTitle.split('招聘')[1]?.split('|')[0]?.trim();
+      if (afterZh) result.title = afterZh;
     } else if (pageTitle.includes(' - ')) {
       // 常见结构 C: "Title - Company" 或 Indeed 的 "Title - Location - Indeed.com"
       const parts = pageTitle.split(' - ').map((s) => s.trim()).filter(Boolean);

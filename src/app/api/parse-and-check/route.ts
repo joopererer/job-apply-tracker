@@ -238,6 +238,11 @@ export async function POST(request: NextRequest) {
       parsedJob.companyNorm = '';
     }
 
+    // 关键排查保底：只要客户端 (Chrome 插件等) 提取到了有效 location，强制保留，绝对不被任何后端逻辑覆盖
+    if (domExtracted?.location && typeof domExtracted.location === 'string' && domExtracted.location.trim()) {
+      parsedJob.location = domExtracted.location.trim();
+    }
+
     // 4. 调用 Supabase 检查重复投递（优先 RPC check_job_duplicates，故障时自动降级 fallback）
     let duplicates: DuplicateCheckResult[] = [];
 
