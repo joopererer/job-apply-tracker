@@ -383,7 +383,7 @@ async function extractPageJobData() {
   }
 
   // -------------------------------------------------------------
-  // 二、 Indeed 详情与分栏提取 (解决单页无 H1 与双栏右侧提取)
+  // 二、 Indeed 详情与分栏提取 (终极倒推与精准定位算法)
   // -------------------------------------------------------------
   if (isIndeed) {
     const vjkMatch = url.match(/[?&](?:vjk|jk)=([a-zA-Z0-9]+)/i);
@@ -394,30 +394,59 @@ async function extractPageJobData() {
       domExtracted.cleanUrl = `https://fr.indeed.com/viewjob?jk=${vjk}`;
     }
 
-    // 1. 寻找右侧详情容器文本（解决双栏与 iframe 问题）
-    let rightEl = document.querySelector(
-      '#jobsearch-ViewJobButtons-container, [data-testid="jobsearch-JobComponent"], .jobsearch-ViewJobLayout--embedded, .jobsearch-RightPane, #viewJobSSRRoot'
-    );
-    if (rightEl && !rightEl.innerText.includes('Description du poste')) {
-      rightEl = rightEl.closest('.jobsearch-JobComponent, .jobsearch-RightPane, main') || document.body;
-    }
+    // 第一步：定位右侧详情区的真实 DOM 或文本行
+    const isSplitView = isIndeedSplit || url.includes('/jobs') || url.includes('vjk=') || url.includes('jk=');
 
+    const allDocs = [document];
     try {
-      const vjsIframe = document.querySelector('#vjs-container-iframe, iframe[title*="Job"], iframe');
-      if (vjsIframe?.contentDocument?.body?.innerText?.length > 200) {
-        rightEl = vjsIframe.contentDocument.body;
+      const iframes = Array.from(document.querySelectorAll('iframe'));
+      for (const f of iframes) {
+        try {
+          if (f.contentDocument) allDocs.push(f.contentDocument);
+        } catch {
+          // 忽略跨域 iframe 限制
+        }
       }
-    } catch (e) {
-      // 忽略跨域 iframe 限制
+    } catch {
+      // 忽略异常
     }
 
-    let fetchedDocTitle = '';
-    // 如果在 /jobs?...&vjk=xxx 两栏页上，rightEl 的文本里仍然不包含 "Description du poste" 或 "Détails du poste"
+    let targetDoc = document;
+    let rightRoot = null;
+
+    // 先在所有文档中寻找专属于右侧详情面板的容器（在双栏搜索页严禁使用 main，因为 main 是包含搜索框和列表的整页容器！）
+    const rightPaneSelectors = [
+      '.jobsearch-RightPane',
+      '.jobsearch-ViewJobLayout--embedded',
+      '.jobsearch-JobComponent',
+      '#jobsearch-ViewjobPaneWrapper',
+      '[data-testid="jobsearch-JobComponent"]',
+      '[data-testid="rnvj-content-layer"]',
+      '#viewJobSSRRoot',
+      '#vjs-container'
+    ].join(', ');
+
+    for (const d of allDocs) {
+      const found = d.querySelector(rightPaneSelectors);
+      if (found) {
+        targetDoc = d;
+        rightRoot = found;
+        break;
+      }
+    }
+
+    // 仅在单栏 /viewjob 页面且确实找不到专用右侧面板时，才允许使用 main 或 body
+    if (!rightRoot && !isSplitView) {
+      rightRoot = document.querySelector('main') || document.body;
+    }
+
+    let rawSourceText = rightRoot ? rightRoot.innerText || '' : '';
+
+    // 如果当前是双栏页且页面 DOM 中没有找到 "Description du poste"，再调用 fetch 兜底
     if (
+      (!rawSourceText || !rawSourceText.includes('Description du poste')) &&
       vjk &&
-      (!rightEl ||
-        (!rightEl.innerText.includes('Description du poste') &&
-          !rightEl.innerText.includes('Détails du poste')))
+      !url.includes('/viewjob')
     ) {
       try {
         const origin = window.location.origin.includes('indeed.')
@@ -428,14 +457,17 @@ async function extractPageJobData() {
           const htmlText = await resp.text();
           const parser = new DOMParser();
           const fetchedDoc = parser.parseFromString(htmlText, 'text/html');
-          if (fetchedDoc && fetchedDoc.body && fetchedDoc.body.innerText.length > 200) {
-            rightEl =
+          if (fetchedDoc) {
+            fetchedDoc.querySelectorAll('script, style, noscript, svg').forEach((el) => el.remove());
+            fetchedDoc.querySelectorAll('div, p, h1, h2, h3, li, br, tr, section, header').forEach((el) => {
+              el.after(document.createTextNode('\n'));
+            });
+            const targetNode =
               fetchedDoc.querySelector(
-                '[data-testid="jobsearch-JobComponent"], .jobsearch-RightPane, .jobsearch-ViewJobLayout--embedded, #viewJobSSRRoot, main'
+                '[data-testid="jobsearch-JobComponent"], .jobsearch-RightPane, main, #viewJobSSRRoot'
               ) || fetchedDoc.body;
-            if (fetchedDoc.title) {
-              fetchedDocTitle = fetchedDoc.title;
-            }
+            rawSourceText = targetNode ? (targetNode.innerText || targetNode.textContent || '') : '';
+            rightRoot = targetNode;
           }
         }
       } catch (err) {
@@ -443,148 +475,319 @@ async function extractPageJobData() {
       }
     }
 
-    // 2. 基于锚点行提取 Indeed 字段
-    const lines = (rightEl || document.body).innerText
+    if (!rawSourceText && rightRoot) {
+      rawSourceText = rightRoot.innerText || '';
+    }
+
+    // 第二步：优先用 Indeed 官方 data-testid 提取，其次用「投递按钮向上倒推法」提取
+    const isNoiseLine = (l) => {
+      if (!l) return true;
+      if (/^\d+$/.test(l)) return true; // 纯数字
+      if (
+        /performance\.mark|window\.|function\s*\(|var\s+|const\s+|let\s+|\{|\}|=>|document\.|\.start\b|\.end\b|<\/?[a-z]+/i.test(
+          l
+        ) ||
+        l.length > 500
+      ) {
+        return true; // 代码
+      }
+      if (
+        /Trier par|pertinence|\bdate\b|Keyword|Rechercher|Début du contenu principal|Passer au contenu principal|Edit location|new update|Search|Find jobs|All jobs|Emplois flutter|Dates\b/i.test(
+          l
+        )
+      ) {
+        return true;
+      }
+      return false;
+    };
+
+    const isBadVal = (val) =>
+      !val ||
+      /^(Rechercher|Keyword\s*:|Edit location|nbsp|Passer au contenu principal|Début du contenu principal|Trier par|pertinence|Dates)$/i.test(
+        val
+      ) ||
+      /(?:Trier par|pertinence|\bdate\b|Keyword\s*:|Edit location|Emplois\s+[a-z]+)/i.test(val) ||
+      val.length > 300;
+
+    // 1. Indeed 官方 data-testid 选择器绝对优先
+    if (rightRoot && typeof rightRoot.querySelector === 'function') {
+      const titleEl = rightRoot.querySelector(
+        '[data-testid="jobsearch-JobInfoHeader-title"], h1.jobsearch-JobInfoHeader-title, .jobsearch-JobInfoHeader-title, [data-testid="vj-job-title"], [data-testid="company-info-title-row"], [data-testid="vj-job-title-compact"]'
+      );
+      if (titleEl && titleEl.innerText) {
+        const cleanT = titleEl.innerText.replace(/\s*-\s*job post\s*$/i, '').trim();
+        if (cleanT && !isBadVal(cleanT)) {
+          domExtracted.titleRaw = cleanT;
+        }
+      }
+
+      const compEl = rightRoot.querySelector(
+        '[data-testid="inlineHeader-companyName"], .jobsearch-InlineCompanyRating, [data-testid="company-info-metadata"] a, a[href*="/cmp/"]'
+      );
+      if (compEl && compEl.innerText) {
+        const cleanC = compEl.innerText.replace(/[•·\s]+$/g, '').trim();
+        if (cleanC && !isBadVal(cleanC)) {
+          domExtracted.companyRaw = cleanC;
+        }
+      }
+
+      const locEl = rightRoot.querySelector(
+        '[data-testid="inlineHeader-companyLocation"], [data-testid="job-location"], [data-testid="jobsearch-JobInfoHeader-companyLocation"], [data-testid="company-info-metadata"] div[dir="ltr"]'
+      );
+      if (locEl && locEl.innerText) {
+        const cleanL = locEl.innerText.replace(/Description du poste.*$/i, '').replace(/[•·\s]+$/g, '').trim();
+        if (cleanL && !isBadVal(cleanL)) {
+          domExtracted.location = cleanL;
+        }
+      }
+    }
+
+    // 2. 从左侧高亮卡片（Active Card）安全回退（双栏页关键兜底）
+    let activeCard = null;
+    if (vjk) {
+      const cardEl = document.querySelector(`[data-jk="${vjk}"], [data-mobtk*="${vjk}"]`);
+      if (cardEl) {
+        activeCard = cardEl.closest('.cardOutline, [data-testid="jobsearch-JobCard"], li, .result') || cardEl;
+      }
+    }
+    if (!activeCard) {
+      const highlightedEl = document.querySelector(
+        '.vjs-highlight, .jobsearch-SerpJobCard.selected, [data-testid="jobsearch-JobCard"].selected'
+      );
+      if (highlightedEl) {
+        activeCard = highlightedEl.closest('.cardOutline, [data-testid="jobsearch-JobCard"], li, .result') || highlightedEl;
+      }
+    }
+
+    if (activeCard) {
+      if (!domExtracted.titleRaw || isBadVal(domExtracted.titleRaw)) {
+        const cardTitleEl = activeCard.querySelector(
+          'a.jcs-JobTitle, h2.jobTitle, h2 span, [data-testid="job-title"]'
+        );
+        if (cardTitleEl && cardTitleEl.innerText) {
+          const ct = cardTitleEl.innerText.replace(/\s*-\s*job post\s*$/i, '').trim();
+          if (ct && !isBadVal(ct)) domExtracted.titleRaw = ct;
+        }
+      }
+
+      if (!domExtracted.companyRaw || isBadVal(domExtracted.companyRaw)) {
+        const cardCompEl = activeCard.querySelector(
+          '[data-testid="company-name"], span.companyName, [data-testid="job-company"]'
+        );
+        if (cardCompEl && cardCompEl.innerText) {
+          const cc = cardCompEl.innerText.replace(/[•·\s]+$/g, '').trim();
+          if (cc && !isBadVal(cc)) domExtracted.companyRaw = cc;
+        }
+      }
+
+      if (!domExtracted.location || isBadVal(domExtracted.location)) {
+        const cardLocEl = activeCard.querySelector(
+          '[data-testid="text-location"], [data-testid="job-location"], div.companyLocation'
+        );
+        if (cardLocEl && cardLocEl.innerText) {
+          const cl = cardLocEl.innerText.replace(/Description du poste.*$/i, '').replace(/[•·\s]+$/g, '').trim();
+          if (cl && !isBadVal(cl)) domExtracted.location = cl;
+        }
+      }
+    }
+
+    // 3. 增强“投递按钮向上倒推法”的噪音行过滤（防错兜底）
+    const lines = (rawSourceText || '')
       .split(/\r?\n/)
       .map((l) => l.trim())
-      .filter(Boolean);
+      .filter((l) => l.length > 0 && !isNoiseLine(l));
 
-    // 从 document.title 保底提取标题与城市 (若 URL 是 /viewjob，标题格式 "Développeur Fullstack Flutter - Paris (75) - Indeed.com")
-    const cleanDocTitle = (fetchedDocTitle || docTitle || document.title || '')
-      .replace(/^\(\d+\)\s*/, '')
-      .trim();
+    let applyIdx = lines.findIndex((l) =>
+      /^(Continuer pour postuler|Postuler maintenant|Postuler sur le site|Candidature simplifi[eé]e|Apply now)/i.test(
+        l
+      )
+    );
+    if (applyIdx === -1) {
+      applyIdx = lines.findIndex((l) => /^(Détails du poste|Job details)/i.test(l));
+    }
+
+    let preLines = [];
+    if (applyIdx !== -1) {
+      preLines = lines.slice(Math.max(0, applyIdx - 4), applyIdx);
+      const lastLine = preLines.length > 0 ? preLines[preLines.length - 1] : '';
+
+      const isContractLine =
+        /^(CDI|CDD|Stage|Alternance|Freelance|Indépendant|Independant|Intérim|Interim|Temps plein)/i.test(
+          lastLine
+        );
+
+      if (isContractLine && preLines.length >= 3) {
+        if (!domExtracted.contractType || domExtracted.contractType === 'UNKNOWN') {
+          const cType = extractContractType(lastLine);
+          if (cType && cType !== 'UNKNOWN') domExtracted.contractType = cType;
+        }
+        if (!domExtracted.location || isBadVal(domExtracted.location)) {
+          const lCand = preLines[preLines.length - 2].replace(/Description du poste.*$/i, '').replace(/[•·\s]+$/g, '').trim();
+          if (!isBadVal(lCand)) domExtracted.location = lCand;
+        }
+        if (!domExtracted.companyRaw || isBadVal(domExtracted.companyRaw)) {
+          const cCand = preLines[preLines.length - 3].replace(/[•·\s]+$/g, '').trim();
+          if (!isBadVal(cCand)) domExtracted.companyRaw = cCand;
+        }
+        if (!domExtracted.titleRaw || isBadVal(domExtracted.titleRaw)) {
+          const tCand = preLines[preLines.length - 4].replace(/\s*-\s*job post\s*$/i, '').trim();
+          if (!isBadVal(tCand)) domExtracted.titleRaw = tCand;
+        }
+      } else if (!isContractLine && preLines.length >= 2) {
+        if (!domExtracted.location || isBadVal(domExtracted.location)) {
+          const lCand = preLines[preLines.length - 1].replace(/Description du poste.*$/i, '').replace(/[•·\s]+$/g, '').trim();
+          if (!isBadVal(lCand)) domExtracted.location = lCand;
+        }
+        if (!domExtracted.companyRaw || isBadVal(domExtracted.companyRaw)) {
+          const cCand = preLines[preLines.length - 2].replace(/[•·\s]+$/g, '').trim();
+          if (!isBadVal(cCand)) domExtracted.companyRaw = cCand;
+        }
+        if (!domExtracted.titleRaw || isBadVal(domExtracted.titleRaw)) {
+          const tCand = preLines[preLines.length - 3].replace(/\s*-\s*job post\s*$/i, '').trim();
+          if (!isBadVal(tCand)) domExtracted.titleRaw = tCand;
+        }
+      }
+    }
+
+    // 使用 Trouvé sur ... 与 document.title 做最终校验兜底
+    const trouveLine = lines.find((l) => /^Trouv[eé]\s+sur\s+(.+)$/i.test(l));
+    let trouveLocation = '';
+    if (trouveLine) {
+      const match = trouveLine.match(/^Trouv[eé]\s+sur\s+(.+)$/i);
+      if (match && match[1]) {
+        trouveLocation = match[1].replace(/Description du poste.*$/i, '').replace(/[•·\s]+$/g, '').trim();
+        if (trouveLocation && !isBadVal(trouveLocation)) {
+          domExtracted.location = trouveLocation;
+        }
+      }
+    }
+    if (!domExtracted.location && rightRoot && rightRoot.innerText) {
+      const matchInRoot = rightRoot.innerText.match(/Trouv[eé]\s+sur\s+([^\n\r]+)/i);
+      if (matchInRoot && matchInRoot[1]) {
+        const lCand = matchInRoot[1].replace(/Description du poste.*$/i, '').replace(/[•·\s]+$/g, '').trim();
+        if (lCand && !isBadVal(lCand)) domExtracted.location = lCand;
+      }
+    }
+
+    // document.title 格式 "Développeur Fullstack Flutter - Paris (75) - Indeed.com" 保底 (仅单栏页使用)
+    const cleanDocTitle = (docTitle || document.title || '').replace(/^\(\d+\)\s*/, '').trim();
     const titleParts = cleanDocTitle.split(/\s*-\s*/);
-    if (titleParts.length >= 2) {
+    let titleFallbackTitle = '';
+    let titleFallbackLocation = '';
+    if (!isSplitView && titleParts.length >= 2) {
       const firstPart = titleParts[0].trim();
       if (
         firstPart &&
         !firstPart.toLowerCase().includes('indeed') &&
-        !/plus de \d+ (?:emplois|offres)/i.test(firstPart)
+        !/plus de \d+/i.test(firstPart) &&
+        !isBadVal(firstPart)
       ) {
-        domExtracted.titleRaw = firstPart;
+        titleFallbackTitle = firstPart;
       }
       if (titleParts.length >= 3) {
         const locPart = titleParts[1].trim();
-        if (locPart && !locPart.toLowerCase().includes('indeed')) {
-          domExtracted.location = locPart;
+        if (locPart && !locPart.toLowerCase().includes('indeed') && !isBadVal(locPart)) {
+          titleFallbackLocation = locPart.replace(/Description du poste.*$/i, '').trim();
         }
       }
     }
 
-    // 从锚点行提取（单页与两栏通用）
-    const startIdx = lines.findIndex((l) => /Début du contenu principal/i.test(l));
-    const applyIdx = lines.findIndex((l) =>
-      /Continuer pour postuler|Postuler maintenant|Postuler sur le site/i.test(l)
-    );
+    if ((!domExtracted.titleRaw || isBadVal(domExtracted.titleRaw)) && titleFallbackTitle) {
+      domExtracted.titleRaw = titleFallbackTitle;
+    }
+    if ((!domExtracted.location || isBadVal(domExtracted.location)) && titleFallbackLocation) {
+      domExtracted.location = titleFallbackLocation;
+    }
 
-    if (startIdx !== -1) {
-      if (lines[startIdx + 1] && !/Continuer pour postuler|Postuler/i.test(lines[startIdx + 1])) {
-        domExtracted.titleRaw = lines[startIdx + 1].replace(/\s*-\s*job post\s*$/i, '').trim();
-      }
-      if (lines[startIdx + 2] && !/Continuer pour postuler|Postuler/i.test(lines[startIdx + 2])) {
-        domExtracted.companyRaw = lines[startIdx + 2].trim();
-      }
-      if (lines[startIdx + 3] && !/Continuer pour postuler|Postuler/i.test(lines[startIdx + 3])) {
-        domExtracted.location = lines[startIdx + 3].trim();
-      }
-      if (lines[startIdx + 4] && !/Continuer pour postuler|Postuler/i.test(lines[startIdx + 4])) {
-        const cType = extractContractType(lines[startIdx + 4]);
-        if (cType && cType !== 'UNKNOWN') {
-          domExtracted.contractType = cType;
-        }
-      }
-    } else if (applyIdx !== -1) {
-      if (applyIdx >= 4) {
-        if (!domExtracted.titleRaw) {
-          domExtracted.titleRaw = lines[applyIdx - 4].replace(/\s*-\s*job post\s*$/i, '').trim();
-        }
-        if (!domExtracted.companyRaw) {
-          domExtracted.companyRaw = lines[applyIdx - 3].trim();
-        }
-        if (!domExtracted.location) {
-          domExtracted.location = lines[applyIdx - 2].trim();
-        }
-        if (!domExtracted.contractType) {
-          const cType = extractContractType(lines[applyIdx - 1]);
-          if (cType && cType !== 'UNKNOWN') domExtracted.contractType = cType;
-        }
-      } else if (applyIdx >= 3) {
-        if (!domExtracted.titleRaw) {
-          domExtracted.titleRaw = lines[applyIdx - 3].replace(/\s*-\s*job post\s*$/i, '').trim();
-        }
-        if (!domExtracted.companyRaw) {
-          domExtracted.companyRaw = lines[applyIdx - 2].trim();
-        }
-        if (!domExtracted.location) {
-          domExtracted.location = lines[applyIdx - 1].trim();
-        }
+    // 严禁将公司名错误赋值到工作地点中：如果 location === companyRaw，强制替换
+    if (
+      domExtracted.location &&
+      domExtracted.companyRaw &&
+      domExtracted.location.toLowerCase() === domExtracted.companyRaw.toLowerCase()
+    ) {
+      if (trouveLocation) {
+        domExtracted.location = trouveLocation;
+      } else if (titleFallbackLocation) {
+        domExtracted.location = titleFallbackLocation;
+      } else {
+        domExtracted.location = null;
       }
     }
 
-    // 从 Détails du poste 二次确认
-    const allIndeedText = (rightEl || document.body).innerText || '';
-    const matchTrouve = allIndeedText.match(/Trouv[eé]\s+sur\s+([^\n\r]+)/i);
-    if (matchTrouve && matchTrouve[1]) {
-      domExtracted.location = matchTrouve[1].trim();
-    }
+    // 最终清理
+    if (isBadVal(domExtracted.titleRaw)) domExtracted.titleRaw = titleFallbackTitle || '';
+    if (isBadVal(domExtracted.companyRaw)) domExtracted.companyRaw = '';
+    if (isBadVal(domExtracted.location)) domExtracted.location = trouveLocation || titleFallbackLocation || null;
 
+    // 第三步：严格限制 workMode、salaryRange、postedAt 的扫描范围
     const detailsIdx = lines.findIndex((l) => /Détails du poste|Job details/i.test(l));
     const descIdx = lines.findIndex((l) => /Description du poste|Full job description/i.test(l));
 
+    let detailsLines = [];
     if (detailsIdx !== -1 && descIdx !== -1 && descIdx > detailsIdx) {
-      const detailsLines = lines.slice(detailsIdx + 1, descIdx);
-      const detailsBlock = detailsLines.join('\n');
+      detailsLines = lines.slice(detailsIdx + 1, descIdx);
+    }
 
-      const cMatch = detailsBlock.match(/\b(CDI|CDD|Freelance|Stage|Alternance|Indépendant|Independant)\b/i);
+    const detailsBlock = detailsLines.join('\n');
+    const restrictedLines = [...preLines, ...detailsLines];
+    const restrictedText = restrictedLines.join('\n');
+
+    // 1. 合同类型补充确认 (若此前仍为 UNKNOWN)
+    if (!domExtracted.contractType || domExtracted.contractType === 'UNKNOWN') {
+      const cMatch = restrictedText.match(
+        /\b(CDI|CDD|Stage|Alternance|Freelance|Indépendant|Independant|Intérim|Temps plein)\b/i
+      );
       if (cMatch) {
         const cType = extractContractType(cMatch[1]);
         if (cType && cType !== 'UNKNOWN') {
           domExtracted.contractType = cType;
         }
       }
+    }
 
-      if (/Aucun salaire indiqué/i.test(detailsBlock)) {
-        domExtracted.salaryRange = null;
-      } else {
-        const sRange = extractSalaryRange(detailsBlock);
-        if (sRange) {
-          domExtracted.salaryRange = sRange;
-        }
-      }
-
-      const wMode = extractWorkMode(detailsBlock);
-      if (wMode) {
-        domExtracted.workMode = wMode;
+    // 2. 薪资提取：仅在 detailsLines 内部匹配
+    if (/Aucun salaire indiqué/i.test(detailsBlock)) {
+      domExtracted.salaryRange = null;
+    } else if (detailsBlock) {
+      const sRange = extractSalaryRange(detailsBlock);
+      if (sRange) {
+        domExtracted.salaryRange = sRange;
       }
     }
 
-    // 提取 JD 正文
+    // 3. 办公方式：若 detailsBlock / preLines 中没有明确出现 Télétravail 或 Hybride，workMode 必须为 null
+    if (
+      restrictedText &&
+      /Télétravail|Teletravail|Hybride|Hybrid|Sur site|Présentiel|Presentiel/i.test(restrictedText)
+    ) {
+      domExtracted.workMode = extractWorkMode(restrictedText);
+    } else {
+      domExtracted.workMode = null;
+    }
+
+    // 4. 发布日期：仅在 restrictedText 中检测，未找到必须严格为 null
+    const dateMatch = restrictedText.match(
+      /(?:publi[eé]e?\s+)?(?:il\s+y\s+a\s+[\w\s\+]+|just posted|today|hier|\d+\+?\s*(?:jours?|days?)\s*(?:ago)?|\d+\s*(?:天|周|个月)\s*前)/i
+    );
+    if (dateMatch) {
+      const parsed = parsePostedDate(dateMatch[0].trim());
+      domExtracted.postedAt = parsed || null;
+    } else {
+      domExtracted.postedAt = null;
+    }
+
+    // 5. 提取 JD 正文 (截取 Description du poste 之后的内容)
     let indeedJd = '';
     if (descIdx !== -1) {
       indeedJd = lines.slice(descIdx + 1).join('\n').trim();
     } else {
-      const jdEl = (rightEl || document).querySelector('#jobDescriptionText');
+      const jdEl = (targetDoc || document).querySelector('#jobDescriptionText');
       if (jdEl && jdEl.innerText) {
         indeedJd = jdEl.innerText.trim();
       }
     }
     if (indeedJd) {
       domExtracted.jdContent = indeedJd;
-    }
-
-    // 提取发布日期
-    const dateEl = (rightEl || document).querySelector(
-      '[data-testid="myJobsStateDate"], .jobsearch-JobMetadataFooter, [data-testid="hiring-insights"]'
-    );
-    const dateText = (dateEl ? dateEl.innerText : '') || allIndeedText;
-    const dateMatch = dateText.match(
-      /(?:publi[eé]e?\s+)?(?:il\s+y\s+a\s+[\w\s\+]+|just posted|today|hier|\d+\+?\s*(?:jours?|days?)\s*(?:ago)?|\d+\s*(?:天|周|个月)\s*前)/i
-    );
-    if (dateMatch) {
-      const parsed = parsePostedDate(dateMatch[0].trim());
-      if (parsed) {
-        domExtracted.postedAt = parsed;
-      }
     }
   }
 
