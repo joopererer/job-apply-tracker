@@ -309,6 +309,30 @@ function formatBaseSalary(baseSalary: any): string | null {
 }
 
 /**
+ * 启发式判断字符串是否大概率为地理位置（城市名、邮编、省份/大区或国家）
+ */
+export function isLikelyLocation(str?: string | null): boolean {
+  if (!str) return false;
+  const s = str.trim();
+  // 匹配法国邮政编码或部门编号，如 "Paris (75)", "(75001)", "75008", "69002 Lyon"
+  if (/\(\s*\d{2,5}\s*\)/.test(s)) return true;
+  if (/^\d{5}\b/.test(s) || /\b\d{5}$/.test(s)) return true;
+  // 常见法国城市与关键词
+  if (
+    /\b(paris|lyon|marseille|toulouse|bordeaux|nantes|lille|strasbourg|rennes|montpellier|nice|grenoble|annecy|rouen|toulon|angers|dijon|brest|le mans|reims|france|teletravail|remote|ile-de-france|auvergne|rhone-alpes|paca)\b/i.test(
+      s
+    )
+  ) {
+    return true;
+  }
+  // 中文地理词汇 (如 "法国 奥弗涅-隆-阿尔卑斯 阿纳西", "巴黎", "里昂")
+  if (/(?:法国|巴黎|里昂|马赛|图卢兹|波尔多|南特|里尔|斯特拉斯堡|雷恩|蒙彼利埃|尼斯|格勒诺布尔|阿纳西|远程)/.test(s)) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * 从 JSON-LD 对象提取地理位置
  */
 function formatJobLocation(jobLocation: any): string | null {
@@ -326,12 +350,19 @@ function formatJobLocation(jobLocation: any): string | null {
     const address = jobLocation.address;
     if (typeof address === 'string') return address.trim();
     if (address && typeof address === 'object') {
-      return (
-        address.addressLocality ||
-        address.addressRegion ||
-        address.streetAddress ||
-        null
-      );
+      const parts = [
+        address.streetAddress,
+        address.addressLocality,
+        address.addressRegion,
+        address.postalCode,
+        address.addressCountry,
+      ]
+        .map((p) => (typeof p === 'string' ? p.trim() : ''))
+        .filter(Boolean);
+
+      if (parts.length > 0) {
+        return parts.join(', ');
+      }
     }
     if (jobLocation.name) return jobLocation.name;
   }
@@ -473,26 +504,78 @@ function extractFromMetaAndText(
   }
 
   // 2. 从 HTML title 中尝试提取标题与公司 (如: "Développeur React chez Doctolib - Paris" 或 "Ingénieur Logiciel (H/F) - Alan")
-  // 排除 Indeed 搜索列表标题如 "Emplois : Flutter - Paris | Indeed.com"
+  // 排除 Indeed 搜索列表标题如 "Emplois : Flutter - Paris | Indeed.com" 或 "Flutter, Paris (75) : plus de 50 emplois (5 novembre 2026) | Indeed"
   const isSearchListPage =
     /^Emplois?\s*:/i.test(pageTitle) ||
-    /Job Search\s*\|\s*Indeed/i.test(pageTitle);
+    /Job Search\s*\|\s*Indeed/i.test(pageTitle) ||
+    /plus de \d+ (?:emplois|offres)/i.test(pageTitle) ||
+    /:\s*plus de \d+/i.test(pageTitle) ||
+    /\b(?:emplois?|offres?)\b.*\|\s*Indeed/i.test(pageTitle);
 
   if (pageTitle && !isSearchListPage) {
-    // 常见结构: "Titre chez Entreprise", "Titre - Entreprise", "Titre | Entreprise"
+    // 常见结构 A: "Titre chez Entreprise"
     if (pageTitle.includes(' chez ')) {
       const parts = pageTitle.split(' chez ');
       result.title = parts[0]?.trim();
-      const rest = parts[1]?.split(/[-|•]/)[0]?.trim();
-      if (rest) result.company = rest;
+      const rest = parts[1]?.split(/[-|•—–]/)[0]?.trim();
+      if (rest) {
+        if (isLikelyLocation(rest)) {
+          result.location = rest;
+        } else {
+          result.company = rest;
+        }
+      }
+    } else if (pageTitle.includes(' at ')) {
+      // 常见结构 B (如 LinkedIn): "Title at Company — Location | LinkedIn Jobs"
+      const parts = pageTitle.split(' at ');
+      result.title = parts[0]?.trim();
+      const afterAt = parts[1] || '';
+      const emDashSplit = afterAt.split(/[—–]/);
+      const compCandidate = emDashSplit[0]?.split(/[-|]/)[0]?.trim();
+      if (compCandidate && compCandidate !== ogSiteName) {
+        result.company = compCandidate;
+      }
+      if (emDashSplit.length > 1) {
+        const locCandidate = emDashSplit[1]?.split(/\|/)[0]?.trim();
+        if (locCandidate && isLikelyLocation(locCandidate)) {
+          result.location = locCandidate;
+        }
+      }
     } else if (pageTitle.includes(' - ')) {
-      const parts = pageTitle.split(' - ');
-      result.title = parts[0]?.trim();
-      if (parts[1]) result.company = parts[1]?.trim();
+      // 常见结构 C: "Title - Company" 或 Indeed 的 "Title - Location - Indeed.com"
+      const parts = pageTitle.split(' - ').map((s) => s.trim()).filter(Boolean);
+      result.title = parts[0];
+      if (parts.length === 2) {
+        if (isLikelyLocation(parts[1])) {
+          result.location = parts[1];
+        } else if (parts[1] !== ogSiteName && !/indeed/i.test(parts[1])) {
+          result.company = parts[1];
+        }
+      } else if (parts.length >= 3) {
+        // 例如 Indeed: "Développeur Fullstack Flutter - Paris (75) - Indeed.com"
+        // parts[0] = Title, parts[1] = "Paris (75)", parts[2] = "Indeed.com"
+        if (isLikelyLocation(parts[1])) {
+          result.location = parts[1];
+          if (parts[2] && parts[2] !== ogSiteName && !/indeed/i.test(parts[2]) && !isLikelyLocation(parts[2])) {
+            result.company = parts[2];
+          }
+        } else {
+          result.company = parts[1];
+          if (parts[2] && isLikelyLocation(parts[2])) {
+            result.location = parts[2];
+          }
+        }
+      }
     } else if (pageTitle.includes(' | ')) {
-      const parts = pageTitle.split(' | ');
-      result.title = parts[0]?.trim();
-      if (parts[1] && parts[1] !== ogSiteName) result.company = parts[1]?.trim();
+      const parts = pageTitle.split(' | ').map((s) => s.trim()).filter(Boolean);
+      result.title = parts[0];
+      if (parts[1] && parts[1] !== ogSiteName && !/indeed/i.test(parts[1])) {
+        if (isLikelyLocation(parts[1])) {
+          result.location = parts[1];
+        } else {
+          result.company = parts[1];
+        }
+      }
     } else {
       result.title = pageTitle;
     }
@@ -612,6 +695,17 @@ export function parseFromHtmlOrText(input: ScrapeInput): ScrapedJob {
   }
   if (!rawData.postedAt && fallbackData.postedAt) {
     rawData.postedAt = fallbackData.postedAt;
+  }
+  if (!rawData.location && fallbackData.location) {
+    rawData.location = fallbackData.location;
+  }
+
+  // 防错守护：如果 company 误抓成了地理位置（如 "Paris (75)"）
+  if (isLikelyLocation(rawData.company)) {
+    if (!rawData.location) {
+      rawData.location = rawData.company;
+    }
+    rawData.company = '';
   }
 
   // 4. 再次对整个正文、rawText 或 HTML 进行薪资正则补全提取

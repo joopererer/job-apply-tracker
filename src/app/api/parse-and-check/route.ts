@@ -6,6 +6,7 @@ import {
   normalizeTitle,
   extractContractType,
   detectLanguage,
+  isLikelyLocation,
 } from '@/lib/scraper';
 import { supabase, ApplicationRecord, DuplicateCheckResult } from '@/lib/supabase';
 
@@ -195,8 +196,8 @@ export async function POST(request: NextRequest) {
             `${domExtracted.contractType || ''} ${mergedTitleRaw} ${mergedJdContent}`
           ) ||
           parsedJob.contractType,
-        location: domExtracted.location ?? parsedJob.location,
-        salaryRange: domExtracted.salaryRange ?? parsedJob.salaryRange,
+        location: domExtracted.location || parsedJob.location || null,
+        salaryRange: domExtracted.salaryRange || parsedJob.salaryRange || null,
         language:
           domExtracted.language ||
           detectLanguage(`${mergedJdContent} ${mergedTitleRaw}`),
@@ -220,7 +221,19 @@ export async function POST(request: NextRequest) {
           parsedJob.companyRaw = domExtracted.companyRaw;
           parsedJob.companyNorm = normalizeCompany(domExtracted.companyRaw);
         }
+        if (domExtracted?.location) {
+          parsedJob.location = domExtracted.location;
+        }
       }
+    }
+
+    // 全局防错：若公司名被误识别成地理位置（例如 "Paris (75)"）
+    if (isLikelyLocation(parsedJob.companyRaw)) {
+      if (!parsedJob.location) {
+        parsedJob.location = parsedJob.companyRaw;
+      }
+      parsedJob.companyRaw = '';
+      parsedJob.companyNorm = '';
     }
 
     // 4. 调用 Supabase 检查重复投递（优先 RPC check_job_duplicates，故障时自动降级 fallback）

@@ -41,60 +41,159 @@ function extractPageJobData() {
   const docTitle = document.title;
   const domExtracted = {};
 
+  function isLikelyLocation(str) {
+    if (!str) return false;
+    const s = str.trim();
+    if (/\(\s*\d{2,5}\s*\)/.test(s)) return true;
+    if (/^\d{5}\b/.test(s) || /\b\d{5}$/.test(s)) return true;
+    if (
+      /\b(paris|lyon|marseille|toulouse|bordeaux|nantes|lille|strasbourg|rennes|montpellier|nice|grenoble|annecy|rouen|toulon|angers|dijon|brest|le mans|reims|france|teletravail|remote|ile-de-france|auvergne|rhone-alpes|paca)\b/i.test(
+        s
+      )
+    ) {
+      return true;
+    }
+    if (
+      /(?:法国|巴黎|里昂|马赛|图卢兹|波尔多|南特|里尔|斯特拉斯堡|雷恩|蒙彼利埃|尼斯|格勒诺布尔|阿纳西|远程)/.test(
+        s
+      )
+    ) {
+      return true;
+    }
+    return false;
+  }
+
   const isIndeed = /indeed\./i.test(url);
   const isLinkedIn = /linkedin\.com/i.test(url);
   const isApec = /apec\.fr/i.test(url);
   const isHelloWork = /hellowork\.com/i.test(url);
 
   // -------------------------------------------------------------
-  // 1. Indeed 分栏与详情页专属提取 (解决 .../jobs?q=...&vjk=xxx 抓错问题)
+  // 1. Indeed 分栏与详情页专属提取 (解决 .../jobs?q=...&vjk=xxx 抓错问题与地址公司名混淆)
   // -------------------------------------------------------------
   if (isIndeed) {
     const vjkMatch = url.match(/[?&](?:vjk|jk)=([a-zA-Z0-9]+)/i);
     const hasVjk = !!vjkMatch;
     const vjk = vjkMatch ? vjkMatch[1] : null;
 
-    // 优先限定在右侧详情容器中查找
+    // 选中的左侧卡片（在 jobs?q=...&vjk=... 页面中始终存在）
+    let cardEl = null;
+    if (vjk) {
+      cardEl =
+        document.querySelector(`[data-jk="${vjk}"]`)?.closest('li, .job_seen_beacon, .result, .slider_item') ||
+        document.querySelector(`[data-jk="${vjk}"]`);
+    }
+
+    // 右侧详情面板容器
     const rightPane =
+      document.querySelector('#jobsearch-ViewjobPaneWrapper') ||
       document.querySelector('.jobsearch-RightPane') ||
+      document.querySelector('#vjs-container') ||
       document.querySelector('.jobsearch-ViewJobLayout--embedded') ||
       document.querySelector('.jobsearch-JobComponent') ||
-      document.querySelector('#jobsearch-ViewJobButtons-container')?.closest('.jobsearch-ViewJobLayout') ||
+      document.querySelector('#viewJobSSRRoot') ||
+      document.querySelector('[data-testid="jobsearch-ViewjobPaneWrapper"]') ||
       document;
 
-    // 职位标题严格取 [data-testid="jobsearch-JobInfoHeader-title"], h2.jobsearch-JobInfoHeader-title
+    // A. 职位标题
     const titleEl = rightPane.querySelector(
-      '[data-testid="jobsearch-JobInfoHeader-title"], h2.jobsearch-JobInfoHeader-title'
+      '[data-testid="jobsearch-JobInfoHeader-title"], h1[class*="JobInfoHeader-title"], h2[class*="JobInfoHeader-title"], [data-testid="simpler-job-title"], .jobsearch-JobInfoHeader-title, h1'
     );
     if (titleEl) {
-      // 克隆节点并剔除内部的 "- job post" 等隐藏 span 文本
       const clone = titleEl.cloneNode(true);
       clone.querySelectorAll('.visually-hidden, span[aria-hidden="true"]').forEach((el) => el.remove());
       const cleanTitle = (clone.textContent || titleEl.innerText || '')
         .replace(/-?\s*job\s*post/gi, '')
         .trim();
-      if (cleanTitle) {
+      if (cleanTitle && !/plus de \d+ (?:emplois|offres)/i.test(cleanTitle) && !cleanTitle.startsWith('Emplois')) {
         domExtracted.titleRaw = cleanTitle;
       }
     }
-
-    // 公司名
-    const companyEl = rightPane.querySelector(
-      '[data-testid="inlineHeader-companyName"], .jobsearch-JobInfoHeader-companyName'
-    );
-    if (companyEl) {
-      domExtracted.companyRaw = (companyEl.textContent || companyEl.innerText || '').trim();
+    // 若未抓到标题且有选中的卡片，从左侧卡片回退
+    if (!domExtracted.titleRaw && cardEl) {
+      const cardTitleEl = cardEl.querySelector(
+        'h2.jobTitle span[title], h2.jobTitle a, h2.jobTitle, [data-testid="jobTitle"], a[data-jk]'
+      );
+      if (cardTitleEl) {
+        const clone = cardTitleEl.cloneNode(true);
+        clone.querySelectorAll('.visually-hidden').forEach((el) => el.remove());
+        const cardTitle = (clone.getAttribute('title') || clone.textContent || '').trim();
+        if (cardTitle) domExtracted.titleRaw = cardTitle;
+      }
     }
 
-    // 城市 / 工作地点
-    const locEl = rightPane.querySelector(
-      '[data-testid="inlineHeader-companyLocation"], [data-testid="job-location"], [data-testid="jobsearch-JobInfoHeader-companyLocation"]'
-    );
-    if (locEl) {
-      domExtracted.location = (locEl.textContent || locEl.innerText || '').trim();
+    // B. 公司名
+    const companySelectors = [
+      'div[data-company-name="true"]',
+      '[data-testid="inlineHeader-companyName"]',
+      '[data-testid="jobsearch-JobInfoHeader-companyName"]',
+      '[data-testid="jobsearch-CompanyInfoContainer"] a',
+      '[data-testid="jobsearch-CompanyInfoContainer"] span',
+      '.jobsearch-CompanyInfoContainer a',
+      '.jobsearch-CompanyInfoContainer',
+      '[data-testid="company-name"]',
+      'a[href*="/cmp/"]',
+      'div[class*="CompanyInfoContainer"] a',
+      'div[class*="CompanyInfoContainer"] span',
+      'span[class*="companyName"]',
+      'div[class*="companyName"]',
+    ];
+    for (const sel of companySelectors) {
+      const compEl = rightPane.querySelector(sel);
+      if (compEl) {
+        const text = (compEl.textContent || compEl.innerText || '').trim();
+        // 绝不能把 "Paris (75)" 当成公司名
+        if (text && !isLikelyLocation(text)) {
+          domExtracted.companyRaw = text;
+          break;
+        }
+      }
+    }
+    // 若未抓到公司名，从左侧卡片回退
+    if (!domExtracted.companyRaw && cardEl) {
+      const cardCompEl = cardEl.querySelector(
+        '[data-testid="company-name"], span.companyName, span[class*="companyName"], a[data-testid="company-name"], a[href*="/cmp/"]'
+      );
+      if (cardCompEl) {
+        const text = (cardCompEl.textContent || cardCompEl.innerText || '').trim();
+        if (text && !isLikelyLocation(text)) {
+          domExtracted.companyRaw = text;
+        }
+      }
     }
 
-    // 发布日期
+    // C. 城市 / 工作地点
+    const locationSelectors = [
+      '[data-testid="inlineHeader-companyLocation"]',
+      '[data-testid="jobsearch-JobInfoHeader-companyLocation"]',
+      '[data-testid="job-location"]',
+      'div[data-testid="jobsearch-CompanyInfoContainer"] + div',
+      'div[class*="companyLocation"]',
+      'div[class*="CompanyLocation"]',
+      '#jobLocationText',
+    ];
+    for (const sel of locationSelectors) {
+      const locEl = rightPane.querySelector(sel);
+      if (locEl) {
+        const text = (locEl.textContent || locEl.innerText || '').trim();
+        if (text) {
+          domExtracted.location = text;
+          break;
+        }
+      }
+    }
+    // 若未抓到地点，从左侧卡片回退
+    if (!domExtracted.location && cardEl) {
+      const cardLocEl = cardEl.querySelector(
+        '[data-testid="text-location"], div.companyLocation, div[class*="companyLocation"]'
+      );
+      if (cardLocEl) {
+        const text = (cardLocEl.textContent || cardLocEl.innerText || '').trim();
+        if (text) domExtracted.location = text;
+      }
+    }
+
+    // D. 发布日期
     const dateEl = rightPane.querySelector(
       '[data-testid="myJobsStateDate"], .jobsearch-JobMetadataFooter, [data-testid="hiring-insights"]'
     );
@@ -118,56 +217,111 @@ function extractPageJobData() {
   // 2. LinkedIn 详情与分栏副标题提取 (解决城市与发布时间漏抓问题)
   // -------------------------------------------------------------
   if (isLinkedIn) {
-    // 标题
-    const liTitleEl = document.querySelector(
-      '.job-details-jobs-unified-top-card__job-title, h1.t-24, .jobs-unified-top-card__job-title'
+    // 顶级卡片容器
+    const topCard =
+      document.querySelector('.job-details-jobs-unified-top-card') ||
+      document.querySelector('.jobs-unified-top-card') ||
+      document.querySelector('.job-view-layout') ||
+      document.querySelector('.top-card-layout') ||
+      document.querySelector('.jobs-search__job-details--container') ||
+      document;
+
+    // A. 标题
+    const liTitleEl = topCard.querySelector(
+      '.job-details-jobs-unified-top-card__job-title, h1.t-24, .jobs-unified-top-card__job-title, h1.top-card-layout__title, h1'
     );
     if (liTitleEl) {
       domExtracted.titleRaw = (liTitleEl.textContent || liTitleEl.innerText || '').trim();
     }
 
-    // 公司
-    const liCompEl = document.querySelector(
-      '.job-details-jobs-unified-top-card__company-name, .jobs-unified-top-card__company-name, .topcard__org-name-link'
+    // B. 公司
+    const liCompEl = topCard.querySelector(
+      '.job-details-jobs-unified-top-card__company-name, .jobs-unified-top-card__company-name, .topcard__org-name-link, a[href*="/company/"], .topcard__flavor:not(.topcard__flavor--bullet)'
     );
     if (liCompEl) {
       domExtracted.companyRaw = (liCompEl.textContent || liCompEl.innerText || '').trim();
     }
 
-    // 副标题描述区 (包含城市、发布时间和申请人数，用 · 分隔)
-    const subContainer = document.querySelector(
-      '.job-details-jobs-unified-top-card__primary-description-container, .job-details-jobs-unified-top-card__tertiary-description-container, .jobs-unified-top-card__primary-description, .job-details-jobs-unified-top-card__primary-description'
-    );
-
-    if (subContainer) {
-      const fullText = (subContainer.innerText || subContainer.textContent || '').trim();
-      const parts = fullText.split(/·|\n/).map((s) => s.trim()).filter(Boolean);
-
-      // 第一个 · 之前是城市/地点
-      if (parts.length > 0 && !domExtracted.location) {
-        // 清理掉可能的 "由 xxx 发布" 等前缀
-        const locCandidate = parts[0]
-          .replace(/^(?:sur\s+place|hybride|a\s+distance|remote|temps\s+plein)\s*[-|•,]?\s*/i, '')
-          .trim();
-        domExtracted.location = locCandidate || parts[0];
-      }
-
-      // 查找包含时间特征词的片段
-      for (const part of parts) {
-        if (/前|时间|il y a|ago|heure|jour|semaine|mois|今天|hier|today|yesterday|reposted/i.test(part)) {
-          // 清洗形如 "的时间: 1 周前" -> "1 周前"
-          const cleanDate = part.replace(/^的时间:\s*/, '').trim();
-          domExtracted.postedAt = cleanDate;
-          break;
+    // C. 地点精确元素查找 (如 .topcard__flavor--bullet, .tvm__text)
+    const locSelectors = [
+      '.topcard__flavor--bullet',
+      '.job-details-jobs-unified-top-card__bullet',
+      '.jobs-unified-top-card__bullet',
+      'span.tvm__text',
+    ];
+    for (const sel of locSelectors) {
+      const el = topCard.querySelector(sel);
+      if (el) {
+        const text = (el.textContent || el.innerText || '').trim();
+        if (
+          text &&
+          !/^(?:现场办公|远程办公|全职|兼职|混合办公|sur\s+place|hybride|remote|temps\s+plein|on-site|full-time)$/i.test(text)
+        ) {
+          if (isLikelyLocation(text) || (!domExtracted.location && text.length > 1)) {
+            domExtracted.location = text;
+            break;
+          }
         }
       }
     }
 
-    // 回退地点查找
-    if (!domExtracted.location) {
-      const tvmEl = document.querySelector('.tvm__text, .jobs-unified-top-card__bullet');
-      if (tvmEl) {
-        domExtracted.location = (tvmEl.textContent || tvmEl.innerText || '').trim();
+    // D. 遍历副标题描述区域（支持全语言、全 Bullet 字符拆分）
+    const subContainers = topCard.querySelectorAll(
+      '.job-details-jobs-unified-top-card__primary-description-container, .job-details-jobs-unified-top-card__primary-description, .jobs-unified-top-card__primary-description, .topcard__flavor-row, div.t-black--light, h1 ~ div, h1 ~ span'
+    );
+
+    for (const sc of subContainers) {
+      const fullText = (sc.innerText || sc.textContent || '').trim();
+      if (!fullText) continue;
+
+      // 拆分子项：支持各种 Unicode bullet 符号 (·, •, ・, ‧, \u2022, \u00B7, \u30FB, \u2027, \u22C5) 及换行
+      const parts = fullText
+        .split(/[·•・‧⋅|\n]/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      for (const part of parts) {
+        // 1) 提取发布时间
+        if (!domExtracted.postedAt && /前|时间|il y a|ago|heure|jour|semaine|mois|今天|hier|today|yesterday|reposted/i.test(part)) {
+          const cleanDate = part.replace(/^(?:的时间|发布于|publi[eé]e?\s*(?:le)?)\s*:?\s*/i, '').trim();
+          domExtracted.postedAt = cleanDate;
+          continue;
+        }
+
+        // 2) 忽略申请人数、推广、洞察、工作模式标签
+        if (
+          /申请|candidat|applicant|推广|洞察|reponse|sponsor|insight/i.test(part) ||
+          /^(?:现场办公|远程办公|全职|兼职|混合办公|sur\s+place|hybride|remote|temps\s+plein|on-site|full-time)$/i.test(part)
+        ) {
+          continue;
+        }
+
+        // 3) 忽略与公司名完全一致的文本
+        if (domExtracted.companyRaw && part.toLowerCase() === domExtracted.companyRaw.toLowerCase()) {
+          continue;
+        }
+
+        // 4) 提取地点 (例如 "法国 奥弗涅-隆-阿尔卑斯 阿纳西")
+        if (!domExtracted.location && part.length > 1) {
+          const locCandidate = part
+            .replace(/^(?:sur\s+place|hybride|a\s+distance|remote|temps\s+plein)\s*[-|•,]?\s*/i, '')
+            .trim();
+          if (locCandidate) {
+            domExtracted.location = locCandidate;
+          }
+        }
+      }
+    }
+
+    // E. 若仍然未识别出地点，尝试从 document.title 提取
+    // 如: "Développeur Android H/F at SOMFY Group — Annecy, Auvergne-Rhône-Alpes, France | LinkedIn Jobs"
+    if (!domExtracted.location && (docTitle.includes(' — ') || docTitle.includes(' – '))) {
+      const dashParts = docTitle.split(/[—–]/);
+      if (dashParts.length > 1) {
+        const afterDash = dashParts[1].split(/\|/)[0].trim();
+        if (afterDash) {
+          domExtracted.location = afterDash;
+        }
       }
     }
   }
@@ -244,8 +398,13 @@ function extractPageJobData() {
     bodyContainerText = document.body ? document.body.innerText.slice(0, 4000) : '';
   }
 
-  // 构建传给服务端的标题：如果是 Indeed 搜索页且已提取到精准 titleRaw，绝不回退使用外层的 docTitle
-  const finalTitle = domExtracted.titleRaw || docTitle;
+  // 构建传给服务端的标题：如果是 Indeed 搜索页且未提取到精准 titleRaw，绝不回退使用外层的 docTitle
+  let finalTitle = domExtracted.titleRaw || '';
+  if (!finalTitle && docTitle) {
+    if (!/plus de \d+ (?:emplois|offres)/i.test(docTitle) && !/^Emplois?\s*:/i.test(docTitle)) {
+      finalTitle = docTitle;
+    }
+  }
 
   const syntheticHtml = `
     <!DOCTYPE html>
