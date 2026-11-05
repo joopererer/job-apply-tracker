@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FR Job Tracker</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      width: 380px;
+      min-height: 400px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #090d16;
+      color: #f1f5f9;
+      padding: 14px;
+      font-size: 13px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #1e293b;
+      margin-bottom: 12px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .brand-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      background: linear-gradient(135deg, #2563eb, #38bdf8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .brand-title {
+      font-size: 14px;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: -0.2px;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #10b981;
+      display: inline-block;
+    }
+
+    /* Loading state */
+    .loading-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 10px;
+      text-align: center;
+      gap: 12px;
+    }
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid rgba(59, 130, 246, 0.2);
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Card */
+    .card {
+      background-color: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    .meta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .badge-platform {
+      background: rgba(59, 130, 246, 0.2);
+      color: #60a5fa;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+    .badge-cdi {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .badge-cdd {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+    .badge-lang {
+      background: rgba(99, 102, 241, 0.15);
+      color: #818cf8;
+      border: 1px solid rgba(99, 102, 241, 0.3);
+    }
+
+    .job-company {
+      font-size: 15px;
+      font-weight: 800;
+      color: #ffffff;
+      margin-bottom: 4px;
+      line-height: 1.2;
+    }
+    .job-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #cbd5e1;
+      margin-bottom: 10px;
+      line-height: 1.3;
+    }
+    .info-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    /* Warning box */
+    .warning-box {
+      background: linear-gradient(180deg, rgba(69, 10, 10, 0.6), rgba(120, 53, 15, 0.5));
+      border: 1.5px solid #f59e0b;
+      border-radius: 10px;
+      padding: 10px;
+      margin-bottom: 12px;
+    }
+    .warning-title {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 800;
+      font-size: 12px;
+      color: #fef08a;
+      margin-bottom: 6px;
+    }
+    .dup-item {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-size: 11px;
+      margin-top: 4px;
+      line-height: 1.4;
+    }
+
+    /* Inputs */
+    .field-group {
+      margin-bottom: 8px;
+    }
+    .field-label {
+      display: block;
+      font-size: 11px;
+      color: #94a3b8;
+      font-weight: 600;
+      margin-bottom: 3px;
+    }
+    .input-text {
+      width: 100%;
+      background: #020617;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 6px 8px;
+      color: #f8fafc;
+      font-size: 12px;
+      outline: none;
+    }
+    .input-text:focus {
+      border-color: #3b82f6;
+    }
+
+    /* Buttons */
+    .btn {
+      width: 100%;
+      padding: 9px 12px;
+      border-radius: 9px;
+      font-size: 13px;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+    .btn-primary {
+      background: #2563eb;
+      color: #ffffff;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+    }
+    .btn-primary:hover {
+      background: #1d4ed8;
+    }
+    .btn-primary:disabled {
+      background: #1e293b;
+      color: #64748b;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+    .btn-secondary {
+      background: #1e293b;
+      color: #cbd5e1;
+      margin-top: 6px;
+    }
+    .btn-secondary:hover {
+      background: #334155;
+    }
+
+    .success-box {
+      text-align: center;
+      padding: 30px 10px;
+    }
+    .success-icon {
+      font-size: 36px;
+      margin-bottom: 8px;
+    }
+    .error-box {
+      background: rgba(127, 29, 29, 0.4);
+      border: 1px solid #991b1b;
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 12px;
+      color: #fca5a5;
+      margin-bottom: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="brand">
+      <div class="brand-icon">FR</div>
+      <div class="brand-title">FR Job Tracker</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <span class="status-dot"></span>
+      <span style="font-size: 11px; color: #94a3b8;">本地服务</span>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div id="loading" class="loading-box">
+    <div class="spinner"></div>
+    <div style="font-weight: 700; font-size: 13px; color: #e2e8f0;">正在提取当前标签页职位信息...</div>
+    <div style="font-size: 11px; color: #64748b;">解析 JSON-LD · 提取 DOM · 核对历史投递</div>
+  </div>
+
+  <!-- Error State -->
+  <div id="error-view" style="display: none;">
+    <div class="error-box" id="error-msg">未能提取当前页面职位信息</div>
+    <button class="btn btn-primary" id="btn-retry">重新抓取</button>
+  </div>
+
+  <!-- Success State -->
+  <div id="success-view" class="success-box" style="display: none;">
+    <div class="success-icon">✅</div>
+    <div style="font-size: 15px; font-weight: 800; color: #ffffff; margin-bottom: 4px;">投递记录已成功入库！</div>
+    <div style="font-size: 12px; color: #94a3b8; margin-bottom: 16px;" id="success-job-name"></div>
+    <button class="btn btn-primary" id="btn-open-board">打开看板查看</button>
+  </div>
+
+  <!-- Main Scraped Result View -->
+  <div id="main-view" style="display: none;">
+    <!-- ⚠️ Duplicate Warning Alert -->
+    <div id="warning-section" class="warning-box" style="display: none;">
+      <div class="warning-title">
+        <span>⚠️</span>
+        <span id="warning-count-text">检测到高危重复投递！</span>
+      </div>
+      <div id="dup-list"></div>
+      <div style="margin-top: 8px;">
+        <label style="font-size: 11px; color: #fed7aa; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+          <input type="checkbox" id="chk-force"> 确认不同岗位，允许强制记录
+        </label>
+      </div>
+    </div>
+
+    <!-- Scraped Job Card -->
+    <div class="card">
+      <div class="meta-row">
+        <span class="badge badge-platform" id="val-platform">PLATFORM</span>
+        <span style="font-size: 11px; color: #64748b;" id="val-id"></span>
+      </div>
+      <div class="job-company" id="val-company">公司名称</div>
+      <div class="job-title" id="val-title">职位名称</div>
+
+      <div class="info-list">
+        <span class="badge badge-cdi" id="val-contract">CDI</span>
+        <span class="badge badge-lang" id="val-lang">🇫🇷 FR</span>
+        <span class="badge" style="background: rgba(148, 163, 184, 0.1); color: #cbd5e1; border: 1px solid #334155;" id="val-location">Paris</span>
+        <span class="badge" style="background: rgba(16, 185, 129, 0.1); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.2);" id="val-salary">薪资未注明</span>
+      </div>
+    </div>
+
+    <!-- Quick Note & HR Contact -->
+    <div class="field-group">
+      <label class="field-label">HR 联系方式 (姓名/电话)</label>
+      <input type="text" class="input-text" id="input-hr" placeholder="如: 06 12 34 56 78 或 Marie">
+    </div>
+    <div class="field-group">
+      <label class="field-label">投递备注笔记</label>
+      <input type="text" class="input-text" id="input-notes" placeholder="如: 投递版本、内推码等...">
+    </div>
+
+    <!-- Action Buttons -->
+    <div style="margin-top: 12px;">
+      <button class="btn btn-primary" id="btn-save">✨ 确认记录投递</button>
+      <button class="btn btn-secondary" id="btn-close">关闭弹窗</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
