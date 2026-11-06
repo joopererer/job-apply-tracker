@@ -222,30 +222,30 @@ export async function POST(request: NextRequest) {
     // 特殊处理 Indeed 带 vjk/jk 的分栏搜索页：强制以右侧分栏提取为准并归一化 cleanUrl
     if (url && (url.includes('vjk=') || url.includes('jk=')) && (url.includes('indeed.') || parsedJob.platform === 'INDEED')) {
       const vjkMatch = url.match(/[?&](?:vjk|jk)=([a-zA-Z0-9]+)/i);
-      if (vjkMatch) {
-        const vjk = vjkMatch[1];
-        parsedJob.externalJobId = vjk;
-        parsedJob.cleanUrl = `https://fr.indeed.com/viewjob?jk=${vjk}`;
-        if (domExtracted?.titleRaw) {
-          parsedJob.titleRaw = domExtracted.titleRaw;
-          parsedJob.titleNorm = normalizeTitle(domExtracted.titleRaw);
-        }
-        if (domExtracted?.companyRaw) {
-          parsedJob.companyRaw = domExtracted.companyRaw;
-          parsedJob.companyNorm = normalizeCompany(domExtracted.companyRaw);
-        }
-        if (domExtracted?.location) {
-          parsedJob.location = domExtracted.location;
-        }
-        if (domExtracted?.workMode !== undefined) {
-          parsedJob.workMode = domExtracted.workMode;
-        }
-        if (domExtracted?.salaryRange !== undefined) {
-          parsedJob.salaryRange = domExtracted.salaryRange;
-        }
-        if (domExtracted?.contractType) {
-          parsedJob.contractType = domExtracted.contractType;
-        }
+      const effectiveJk = domExtracted?.externalJobId || (vjkMatch ? vjkMatch[1] : null);
+      if (effectiveJk) {
+        parsedJob.externalJobId = effectiveJk;
+        parsedJob.cleanUrl = `https://fr.indeed.com/viewjob?jk=${effectiveJk}`;
+      }
+      if (domExtracted?.titleRaw) {
+        parsedJob.titleRaw = domExtracted.titleRaw;
+        parsedJob.titleNorm = normalizeTitle(domExtracted.titleRaw);
+      }
+      if (domExtracted?.companyRaw) {
+        parsedJob.companyRaw = domExtracted.companyRaw;
+        parsedJob.companyNorm = normalizeCompany(domExtracted.companyRaw);
+      }
+      if (domExtracted?.location) {
+        parsedJob.location = domExtracted.location;
+      }
+      if (domExtracted?.workMode !== undefined) {
+        parsedJob.workMode = domExtracted.workMode;
+      }
+      if (domExtracted?.salaryRange !== undefined) {
+        parsedJob.salaryRange = domExtracted.salaryRange;
+      }
+      if (domExtracted?.contractType) {
+        parsedJob.contractType = domExtracted.contractType;
       }
     }
 
