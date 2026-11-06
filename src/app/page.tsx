@@ -53,6 +53,15 @@ function formatDaysAgo(isoDate: string): string {
   return `${Math.floor(diffDays / 30)} 个月前`;
 }
 
+// 判断是否为投递超过 2 个月（约 60 天）
+function isOverTwoMonths(isoDate?: string | null): boolean {
+  if (!isoDate) return false;
+  const t = new Date(isoDate).getTime();
+  if (isNaN(t)) return false;
+  const diffDays = (Date.now() - t) / (1000 * 60 * 60 * 24);
+  return diffDays >= 60;
+}
+
 type TabStatus =
   | 'ALL'
   | 'SAVED'
@@ -62,15 +71,57 @@ type TabStatus =
   | 'OFFER'
   | 'REJECTED';
 
+// 状态视觉配置（参考 Excel 配色定义：已投递浅绿、面试浅橙、Offer饱满绿、未通过浅灰）
 const STATUS_LABELS: Record<TabStatus, { label: string; color: string; badge: string }> = {
   ALL: { label: '全部岗位', color: 'bg-slate-800 text-slate-300', badge: 'bg-slate-800' },
-  SAVED: { label: '📌 未投递', color: 'bg-amber-950/60 text-amber-300 border-amber-700/60', badge: 'bg-amber-600' },
-  APPLIED: { label: '🚀 已投递', color: 'bg-blue-900/60 text-blue-300 border-blue-700/60', badge: 'bg-blue-600' },
-  HR_CALL: { label: '📞 HR 沟通', color: 'bg-amber-900/60 text-amber-300 border-amber-700/60', badge: 'bg-amber-500' },
-  TECH_INTERVIEW: { label: '💻 技术面试', color: 'bg-purple-900/60 text-purple-300 border-purple-700/60', badge: 'bg-purple-600' },
-  OFFER: { label: '🎉 已获 Offer', color: 'bg-emerald-900/60 text-emerald-300 border-emerald-700/60', badge: 'bg-emerald-500' },
-  REJECTED: { label: '❌ 未通过', color: 'bg-rose-950/60 text-rose-300 border-rose-800/60', badge: 'bg-rose-600' },
+  SAVED: { label: '📌 未投递', color: 'bg-slate-800 text-slate-300 border-slate-700', badge: 'bg-slate-700' },
+  APPLIED: { label: '🚀 已投递', color: 'bg-emerald-950/80 text-emerald-300 border-emerald-700/60', badge: 'bg-emerald-600' },
+  HR_CALL: { label: '📞 HR 沟通', color: 'bg-amber-950/80 text-amber-300 border-amber-700/60', badge: 'bg-amber-500' },
+  TECH_INTERVIEW: { label: '💻 技术面试', color: 'bg-amber-950/80 text-amber-300 border-amber-700/60', badge: 'bg-amber-500' },
+  OFFER: { label: '🎉 已获 Offer', color: 'bg-emerald-700 text-emerald-100 border-emerald-400 font-extrabold', badge: 'bg-emerald-500' },
+  REJECTED: { label: '❌ 未通过', color: 'bg-slate-800 text-slate-400 border-slate-700', badge: 'bg-slate-600' },
 };
+
+// 卡片背景与边框色彩计算（依据 Excel 状态分类与 2 个月无回复自动判定）
+function getCardStyle(status: string, appliedAt: string | null | undefined, isStarred: boolean) {
+  const overTwoMonths = status === 'APPLIED' && isOverTwoMonths(appliedAt);
+
+  let bgStyle = 'bg-slate-900 hover:bg-slate-850';
+  let borderStyle = 'border-slate-800 hover:border-slate-700';
+
+  if (overTwoMonths) {
+    // 超过 2 个月无回复的已投递：浅红色
+    bgStyle = 'bg-rose-950/20 hover:bg-rose-950/30';
+    borderStyle = 'border-rose-900/40 hover:border-rose-700/60';
+  } else if (status === 'APPLIED') {
+    // 已投递：浅绿色
+    bgStyle = 'bg-emerald-950/20 hover:bg-emerald-950/30';
+    borderStyle = 'border-emerald-800/40 hover:border-emerald-700/60';
+  } else if (status === 'HR_CALL' || status === 'TECH_INTERVIEW') {
+    // 面试沟通中：浅橙色
+    bgStyle = 'bg-amber-950/20 hover:bg-amber-950/30';
+    borderStyle = 'border-amber-800/40 hover:border-amber-700/60';
+  } else if (status === 'OFFER') {
+    // 已获 Offer：没那么透明的深绿色
+    bgStyle = 'bg-emerald-900/35 hover:bg-emerald-900/45';
+    borderStyle = 'border-emerald-500/70 hover:border-emerald-400 shadow-lg shadow-emerald-500/15';
+  } else if (status === 'REJECTED') {
+    // 未通过：浅灰色 (弱化显示)
+    bgStyle = 'bg-slate-900/40 hover:bg-slate-900/60 opacity-80 hover:opacity-100';
+    borderStyle = 'border-slate-800/80 hover:border-slate-700';
+  } else if (status === 'SAVED') {
+    // 未投递：保持现状暗调
+    bgStyle = 'bg-slate-900 hover:bg-slate-850';
+    borderStyle = 'border-slate-800 hover:border-slate-700';
+  }
+
+  // 特别关注维持金色高亮描边与发光
+  if (isStarred) {
+    borderStyle = 'border-amber-400/90 shadow-lg shadow-amber-500/15 ring-1 ring-amber-400/40';
+  }
+
+  return { bgStyle, borderStyle, overTwoMonths };
+}
 
 const PLATFORM_NAMES: Record<string, string> = {
   INDEED: 'Indeed',
@@ -1172,14 +1223,16 @@ export default function HomePage() {
                 }
 
                 const isStarred = Boolean(app.is_starred ?? app.isStarred);
+                const { bgStyle, borderStyle, overTwoMonths } = getCardStyle(
+                  currentStatus,
+                  app.applied_at,
+                  isStarred
+                );
+
                 return (
                   <div
                     key={app.id}
-                    className={`p-4 sm:p-5 rounded-2xl bg-slate-900 border transition space-y-3.5 shadow-lg relative ${
-                      isStarred
-                        ? 'border-amber-400/80 shadow-amber-500/10 ring-1 ring-amber-400/30'
-                        : 'border-slate-800 hover:border-slate-700'
-                    }`}
+                    className={`p-4 sm:p-5 rounded-2xl ${bgStyle} border ${borderStyle} transition space-y-3.5 shadow-lg relative`}
                   >
                     {/* 卡片头部：公司、评级、合同、语言、距今天数 */}
                     <div className="flex items-start justify-between gap-2">
@@ -1227,7 +1280,16 @@ export default function HomePage() {
 
                       {/* 投递时间与状态标识 + 星标/编辑/删除操作按钮 */}
                       <div className="text-right shrink-0 space-y-2">
-                        <div className="flex items-center gap-1.5 justify-end">
+                        <div className="flex items-center gap-1.5 justify-end flex-wrap">
+                          {overTwoMonths && (
+                            <span
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-500/20 text-rose-300 border border-rose-500/50"
+                              title="已投递超过2个月无反馈"
+                            >
+                              ⚠️ 已超过2个月
+                            </span>
+                          )}
+
                           <span
                             className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold border ${statusMeta.color}`}
                           >
