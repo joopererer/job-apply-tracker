@@ -1243,13 +1243,13 @@ export default function HomePage() {
                   >
                     {/* 水印盖章效果 (OFFER 成功章 / REJECTED 失败章) */}
                     {stampType === 'SUCCESS' && (
-                      <div className="absolute right-28 sm:right-36 top-3 pointer-events-none select-none opacity-40 transform -rotate-12 border-2 border-dashed border-emerald-400 text-emerald-300 font-black tracking-widest text-[11px] sm:text-xs px-2.5 py-0.5 rounded uppercase shadow-sm shadow-emerald-500/20">
+                      <div className="absolute right-24 sm:right-32 top-3 pointer-events-none select-none opacity-80 transform -rotate-12 border-2 border-dashed border-emerald-400 text-emerald-200 bg-emerald-950/60 font-black tracking-widest text-xs sm:text-sm px-3 py-1 rounded-md uppercase shadow-lg shadow-emerald-500/20">
                         🎉 OFFER · SUCCESS
                       </div>
                     )}
                     {stampType === 'FAILED' && (
-                      <div className="absolute right-28 sm:right-36 top-3 pointer-events-none select-none opacity-30 transform -rotate-12 border-2 border-dashed border-zinc-500 text-zinc-400 font-black tracking-widest text-[11px] sm:text-xs px-2.5 py-0.5 rounded uppercase">
-                        FAILED · 未通过
+                      <div className="absolute right-24 sm:right-32 top-3 pointer-events-none select-none opacity-85 transform -rotate-12 border-2 border-dashed border-zinc-400 text-zinc-100 bg-zinc-950/85 font-black tracking-widest text-xs sm:text-sm px-3 py-1 rounded-md uppercase shadow-lg shadow-black/40">
+                        ✕ FAILED · 未通过
                       </div>
                     )}
 
