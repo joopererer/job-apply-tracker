@@ -37,6 +37,7 @@ async function initApiBase() {
 
 let currentParsedJob = null;
 let currentDuplicates = [];
+let isStarred = false;
 
 // DOM 元素引用
 const loadingEl = document.getElementById('loading');
@@ -51,6 +52,9 @@ const warningCountTextEl = document.getElementById('warning-count-text');
 const dupListEl = document.getElementById('dup-list');
 const chkForceEl = document.getElementById('chk-force');
 
+const jobCardEl = document.getElementById('job-card');
+const btnStarEl = document.getElementById('btn-star');
+const starTextEl = document.getElementById('star-text');
 const valPlatformEl = document.getElementById('val-platform');
 const valIdEl = document.getElementById('val-id');
 const valCompanyEl = document.getElementById('val-company');
@@ -58,11 +62,15 @@ const valTitleEl = document.getElementById('val-title');
 const valContractEl = document.getElementById('val-contract');
 const valWorkModeEl = document.getElementById('val-workmode');
 const valLangEl = document.getElementById('val-lang');
+const valRatingEl = document.getElementById('val-rating');
+const valStatusBadgeEl = document.getElementById('val-status-badge');
 const valLocationEl = document.getElementById('val-location');
 const valSalaryEl = document.getElementById('val-salary');
 const valPostedEl = document.getElementById('val-posted');
 
 // 核心可编辑表单元素
+const selectRatingEl = document.getElementById('select-rating');
+const selectStatusEl = document.getElementById('select-status');
 const selectContractEl = document.getElementById('select-contract');
 const selectWorkModeEl = document.getElementById('select-workmode');
 const inputPostedEl = document.getElementById('input-posted');
@@ -1237,6 +1245,69 @@ function updateWorkModeBadge(mode) {
   }
 }
 
+// 更新星标 UI
+function updateStarUI(starred) {
+  isStarred = Boolean(starred);
+  if (btnStarEl) {
+    if (isStarred) {
+      btnStarEl.classList.add('active');
+      if (starTextEl) starTextEl.textContent = '已关注';
+    } else {
+      btnStarEl.classList.remove('active');
+      if (starTextEl) starTextEl.textContent = '特别关注';
+    }
+  }
+  if (jobCardEl) {
+    if (isStarred) {
+      jobCardEl.classList.add('card-starred');
+    } else {
+      jobCardEl.classList.remove('card-starred');
+    }
+  }
+}
+
+// 更新评级徽章
+function updateRatingBadge(rating) {
+  if (!valRatingEl) return;
+  valRatingEl.textContent = `⭐ 评级: ${rating || 'B'}`;
+  if (rating === 'S+' || rating === 'S') {
+    valRatingEl.style.background = 'rgba(239, 68, 68, 0.2)';
+    valRatingEl.style.color = '#fca5a5';
+    valRatingEl.style.borderColor = '#ef4444';
+  } else if (rating === 'A+' || rating === 'A' || rating === 'A-') {
+    valRatingEl.style.background = 'rgba(245, 158, 11, 0.2)';
+    valRatingEl.style.color = '#fcd34d';
+    valRatingEl.style.borderColor = '#f59e0b';
+  } else if (rating === 'B') {
+    valRatingEl.style.background = 'rgba(59, 130, 246, 0.2)';
+    valRatingEl.style.color = '#93c5fd';
+    valRatingEl.style.borderColor = '#3b82f6';
+  } else {
+    valRatingEl.style.background = 'rgba(148, 163, 184, 0.2)';
+    valRatingEl.style.color = '#cbd5e1';
+    valRatingEl.style.borderColor = '#64748b';
+  }
+}
+
+// 更新初始状态徽章与保存按钮文字
+function updateStatusUI(status) {
+  if (valStatusBadgeEl) {
+    if (status === 'SAVED') {
+      valStatusBadgeEl.textContent = '📌 先保存未投';
+      valStatusBadgeEl.style.background = 'rgba(245, 158, 11, 0.2)';
+      valStatusBadgeEl.style.color = '#fbbf24';
+      valStatusBadgeEl.style.borderColor = '#f59e0b';
+      if (!btnSaveEl.disabled) btnSaveEl.textContent = '📌 确认保存为未投递';
+    } else {
+      valStatusBadgeEl.textContent = '🚀 已直接投递';
+      valStatusBadgeEl.style.background = 'rgba(37, 99, 235, 0.2)';
+      valStatusBadgeEl.style.color = '#60a5fa';
+      valStatusBadgeEl.style.borderColor = '#2563eb';
+      if (!btnSaveEl.disabled) btnSaveEl.textContent = '🚀 确认记录投递';
+    }
+  }
+}
+
 // 渲染结果
 function renderResult(job, duplicates) {
   loadingEl.style.display = 'none';
@@ -1259,18 +1330,29 @@ function renderResult(job, duplicates) {
   selectWorkModeEl.value = initialWorkMode;
   updateWorkModeBadge(initialWorkMode);
 
-  // 3. 语言展示
+  // 3. 评级、状态与星标复位
+  updateStarUI(false);
+  if (selectRatingEl) {
+    selectRatingEl.value = 'B';
+    updateRatingBadge('B');
+  }
+  if (selectStatusEl) {
+    selectStatusEl.value = 'APPLIED';
+    updateStatusUI('APPLIED');
+  }
+
+  // 4. 语言展示
   valLangEl.textContent = job.language === 'FR' ? '🇫🇷 FR' : '🇬🇧 EN';
 
-  // 4. 工作地点输入框与展示联动 (纯地点，绝无工作模式后缀)
+  // 5. 工作地点输入框与展示联动 (纯地点，绝无工作模式后缀)
   valLocationEl.textContent = job.location || '地点未注明';
   inputLocationEl.value = job.location || '';
 
-  // 5. 薪资输入框与展示联动
+  // 6. 薪资输入框与展示联动
   valSalaryEl.textContent = job.salaryRange || '薪资面议';
   inputSalaryEl.value = job.salaryRange || '';
 
-  // 6. 发布日期展示与输入框
+  // 7. 发布日期展示与输入框
   if (job.postedAt) {
     valPostedEl.style.display = 'inline-block';
     valPostedEl.textContent = `📅 ${job.postedAt}`;
@@ -1311,7 +1393,8 @@ function renderResult(job, duplicates) {
     warningSectionEl.style.display = 'none';
     chkForceEl.checked = true;
     btnSaveEl.disabled = false;
-    btnSaveEl.textContent = '✨ 确认记录投递';
+    const currentStatus = selectStatusEl?.value || 'APPLIED';
+    btnSaveEl.textContent = currentStatus === 'SAVED' ? '📌 确认保存为未投递' : '🚀 确认记录投递';
   }
 }
 
@@ -1328,6 +1411,8 @@ async function saveApplication() {
     const chosenLocation = inputLocationEl.value.trim() || null;
     const chosenSalary = inputSalaryEl.value.trim() || null;
     const chosenPostedAt = inputPostedEl.value.trim() || null;
+    const chosenRating = selectRatingEl?.value || 'B';
+    const chosenStatus = selectStatusEl?.value || 'APPLIED';
 
     const payload = {
       ...currentParsedJob,
@@ -1336,7 +1421,9 @@ async function saveApplication() {
       location: chosenLocation,
       salaryRange: chosenSalary,
       postedAt: chosenPostedAt,
-      status: 'APPLIED',
+      rating: chosenRating,
+      is_starred: isStarred,
+      status: chosenStatus,
       notes: inputNotesEl.value.trim() || null,
       hrContact: inputHrEl.value.trim() || null,
     };
@@ -1358,7 +1445,8 @@ async function saveApplication() {
   } catch (err) {
     alert(`保存失败: ${err.message}`);
     btnSaveEl.disabled = false;
-    btnSaveEl.textContent = '✨ 确认记录投递';
+    const currentStatus = selectStatusEl?.value || 'APPLIED';
+    btnSaveEl.textContent = currentStatus === 'SAVED' ? '📌 确认保存为未投递' : '🚀 确认记录投递';
   }
 }
 
@@ -1379,6 +1467,24 @@ function showError(msg) {
 }
 
 // 实时输入监听与微调同步
+if (btnStarEl) {
+  btnStarEl.addEventListener('click', () => {
+    updateStarUI(!isStarred);
+  });
+}
+
+if (selectRatingEl) {
+  selectRatingEl.addEventListener('change', () => {
+    updateRatingBadge(selectRatingEl.value);
+  });
+}
+
+if (selectStatusEl) {
+  selectStatusEl.addEventListener('change', () => {
+    updateStatusUI(selectStatusEl.value);
+  });
+}
+
 selectContractEl.addEventListener('change', () => {
   updateContractBadge(selectContractEl.value);
 });

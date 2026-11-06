@@ -5,12 +5,17 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
+export type JobRating = 'C' | 'B' | 'A-' | 'A' | 'A+' | 'S' | 'S+';
+
 export interface ApplicationRecord {
   id: string;
   applied_at: string;
   posted_at?: string | null;
   postedAt?: string | null;
   status: string;
+  rating?: JobRating | string | null;
+  is_starred?: boolean | null;
+  isStarred?: boolean | null;
   notes: string | null;
   platform: string;
   external_job_id: string | null;

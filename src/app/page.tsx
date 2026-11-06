@@ -30,6 +30,7 @@ import {
   Share2,
   ShieldAlert,
   Sparkles,
+  Star,
   Tag,
   Trash2,
   X,
@@ -54,6 +55,7 @@ function formatDaysAgo(isoDate: string): string {
 
 type TabStatus =
   | 'ALL'
+  | 'SAVED'
   | 'APPLIED'
   | 'HR_CALL'
   | 'TECH_INTERVIEW'
@@ -61,13 +63,41 @@ type TabStatus =
   | 'REJECTED';
 
 const STATUS_LABELS: Record<TabStatus, { label: string; color: string; badge: string }> = {
-  ALL: { label: '全部投递', color: 'bg-slate-800 text-slate-300', badge: 'bg-slate-800' },
-  APPLIED: { label: '已投递', color: 'bg-blue-900/60 text-blue-300 border-blue-700/60', badge: 'bg-blue-600' },
-  HR_CALL: { label: 'HR 沟通', color: 'bg-amber-900/60 text-amber-300 border-amber-700/60', badge: 'bg-amber-500' },
-  TECH_INTERVIEW: { label: '技术面试', color: 'bg-purple-900/60 text-purple-300 border-purple-700/60', badge: 'bg-purple-600' },
-  OFFER: { label: '已获 Offer', color: 'bg-emerald-900/60 text-emerald-300 border-emerald-700/60', badge: 'bg-emerald-500' },
-  REJECTED: { label: '未通过', color: 'bg-rose-950/60 text-rose-300 border-rose-800/60', badge: 'bg-rose-600' },
+  ALL: { label: '全部岗位', color: 'bg-slate-800 text-slate-300', badge: 'bg-slate-800' },
+  SAVED: { label: '📌 未投递', color: 'bg-amber-950/60 text-amber-300 border-amber-700/60', badge: 'bg-amber-600' },
+  APPLIED: { label: '🚀 已投递', color: 'bg-blue-900/60 text-blue-300 border-blue-700/60', badge: 'bg-blue-600' },
+  HR_CALL: { label: '📞 HR 沟通', color: 'bg-amber-900/60 text-amber-300 border-amber-700/60', badge: 'bg-amber-500' },
+  TECH_INTERVIEW: { label: '💻 技术面试', color: 'bg-purple-900/60 text-purple-300 border-purple-700/60', badge: 'bg-purple-600' },
+  OFFER: { label: '🎉 已获 Offer', color: 'bg-emerald-900/60 text-emerald-300 border-emerald-700/60', badge: 'bg-emerald-500' },
+  REJECTED: { label: '❌ 未通过', color: 'bg-rose-950/60 text-rose-300 border-rose-800/60', badge: 'bg-rose-600' },
 };
+
+const RATING_WEIGHT: Record<string, number> = {
+  'S+': 7,
+  S: 6,
+  'A+': 5,
+  A: 4,
+  'A-': 3,
+  B: 2,
+  C: 1,
+};
+
+function getRatingBadge(rating?: string | null) {
+  const r = rating || 'B';
+  let badgeStyle = 'bg-blue-500/15 text-blue-300 border-blue-500/30';
+  if (r === 'S+' || r === 'S') {
+    badgeStyle = 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-sm shadow-rose-500/20 font-black';
+  } else if (r === 'A+' || r === 'A' || r === 'A-') {
+    badgeStyle = 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-extrabold';
+  } else if (r === 'C') {
+    badgeStyle = 'bg-slate-500/20 text-slate-400 border-slate-500/30';
+  }
+  return (
+    <span className={`px-2 py-0.5 rounded text-[11px] border font-bold ${badgeStyle}`}>
+      评级: {r}
+    </span>
+  );
+}
 
 export default function HomePage() {
   // 数据与列表状态
@@ -76,6 +106,12 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState<TabStatus>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedJdIds, setExpandedJdIds] = useState<Set<string>>(new Set());
+
+  // 多维过滤条件状态
+  const [filterPlatform, setFilterPlatform] = useState<string>('ALL');
+  const [filterMinRating, setFilterMinRating] = useState<string>('ALL');
+  const [filterStarredOnly, setFilterStarredOnly] = useState<boolean>(false);
+  const [filterContract, setFilterContract] = useState<string>('ALL');
 
   // 顶部极速录入栏状态
   const [inputContent, setInputContent] = useState('');
@@ -92,6 +128,9 @@ export default function HomePage() {
   const [editContract, setEditContract] = useState<ContractType>('CDI');
   const [editWorkMode, setEditWorkMode] = useState<WorkMode | ''>('');
   const [editLang, setEditLang] = useState<'FR' | 'EN'>('FR');
+  const [editRating, setEditRating] = useState<string>('B');
+  const [editStatus, setEditStatus] = useState<string>('APPLIED');
+  const [editStarred, setEditStarred] = useState<boolean>(false);
   const [editLocation, setEditLocation] = useState('');
   const [editSalary, setEditSalary] = useState('');
   const [editPostedAt, setEditPostedAt] = useState('');
@@ -222,6 +261,9 @@ export default function HomePage() {
       setEditContract(job.contractType || 'CDI');
       setEditWorkMode(job.workMode || '');
       setEditLang(job.language || 'FR');
+      setEditRating('B');
+      setEditStatus('APPLIED');
+      setEditStarred(false);
       setEditLocation(job.location || '');
       setEditSalary(job.salaryRange || '');
       setEditPostedAt(job.postedAt || '');
@@ -244,12 +286,14 @@ export default function HomePage() {
         contractType: editContract,
         workMode: editWorkMode || null,
         language: editLang,
+        rating: editRating,
+        is_starred: editStarred,
         location: editLocation || null,
         salaryRange: editSalary || null,
         postedAt: editPostedAt || null,
         notes: editNotes || null,
         hrContact: editHr ? { phone: editHr, raw: editHr } : null,
-        status: 'APPLIED',
+        status: editStatus || 'APPLIED',
       };
 
       const res = await fetch('/api/applications', {
@@ -268,6 +312,9 @@ export default function HomePage() {
       setParsedJob(null);
       setDuplicates([]);
       setEditWorkMode('');
+      setEditRating('B');
+      setEditStatus('APPLIED');
+      setEditStarred(false);
       setEditNotes('');
       setEditHr('');
       await fetchApplications();
@@ -275,6 +322,27 @@ export default function HomePage() {
       alert(`保存失败: ${err.message}`);
     } finally {
       setSavingRecord(false);
+    }
+  };
+
+  // 快捷切换卡片星标状态
+  const handleToggleStar = async (app: ApplicationRecord, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newStarred = !Boolean(app.is_starred ?? app.isStarred);
+    setApplications((prev) =>
+      prev.map((a) => (a.id === app.id ? { ...a, is_starred: newStarred, isStarred: newStarred } : a))
+    );
+    try {
+      await fetch('/api/applications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: app.id, is_starred: newStarred }),
+      });
+    } catch {
+      // 容错回滚
+      setApplications((prev) =>
+        prev.map((a) => (a.id === app.id ? { ...a, is_starred: !newStarred, isStarred: !newStarred } : a))
+      );
     }
   };
 
@@ -349,19 +417,45 @@ export default function HomePage() {
   // 统计数据
   const stats = useMemo(() => {
     const total = applications.length;
+    const saved = applications.filter((a) => a.status === 'SAVED').length;
     const hrCalls = applications.filter((a) => a.status === 'HR_CALL').length;
     const interviews = applications.filter((a) => a.status === 'TECH_INTERVIEW').length;
     const offers = applications.filter((a) => a.status === 'OFFER').length;
     const positiveReplies = hrCalls + interviews + offers;
-    const replyRate = total > 0 ? ((positiveReplies / total) * 100).toFixed(0) : '0';
-    return { total, hrCalls, interviews, offers, replyRate };
+    const activeApplied = total - saved;
+    const replyRate = activeApplied > 0 ? ((positiveReplies / activeApplied) * 100).toFixed(0) : '0';
+    return { total, saved, hrCalls, interviews, offers, replyRate };
   }, [applications]);
 
-  // 根据当前标签筛选列表
+  // 根据当前标签与多维过滤器筛选列表
   const filteredApplications = useMemo(() => {
-    if (activeTab === 'ALL') return applications;
-    return applications.filter((a) => a.status === activeTab);
-  }, [applications, activeTab]);
+    return applications.filter((a) => {
+      // 1. 状态 Tab 过滤
+      if (activeTab !== 'ALL' && a.status !== activeTab) {
+        return false;
+      }
+      // 2. 仅看星标
+      if (filterStarredOnly && !Boolean(a.is_starred ?? a.isStarred)) {
+        return false;
+      }
+      // 3. 平台过滤
+      if (filterPlatform !== 'ALL') {
+        const plat = (a.platform || 'OTHER').toUpperCase();
+        if (plat !== filterPlatform.toUpperCase()) return false;
+      }
+      // 4. 合同类型过滤
+      if (filterContract !== 'ALL' && a.contract_type !== filterContract) {
+        return false;
+      }
+      // 5. 最低评级过滤
+      if (filterMinRating !== 'ALL') {
+        const minWeight = RATING_WEIGHT[filterMinRating] || 0;
+        const currentWeight = RATING_WEIGHT[a.rating || 'B'] || 2;
+        if (currentWeight < minWeight) return false;
+      }
+      return true;
+    });
+  }, [applications, activeTab, filterStarredOnly, filterPlatform, filterContract, filterMinRating]);
 
   const toggleExpandJd = (id: string) => {
     setExpandedJdIds((prev) => {
@@ -397,9 +491,15 @@ export default function HomePage() {
           {/* 实时统计微标 */}
           <div className="flex items-center gap-2 text-xs">
             <div className="px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700/80 flex items-center gap-1.5">
-              <span className="text-slate-400">总投递:</span>
+              <span className="text-slate-400">总岗位:</span>
               <strong className="text-blue-400 font-bold">{stats.total}</strong>
             </div>
+            {stats.saved > 0 && (
+              <div className="px-2.5 py-1 rounded-lg bg-amber-950/60 border border-amber-800/60 flex items-center gap-1.5 hidden sm:flex">
+                <span className="text-amber-400 font-bold">📌 未投:</span>
+                <strong className="text-amber-300 font-bold">{stats.saved}</strong>
+              </div>
+            )}
             <div className="px-2.5 py-1 rounded-lg bg-emerald-950/60 border border-emerald-800/60 flex items-center gap-1.5">
               <Flame className="w-3.5 h-3.5 text-emerald-400" />
               <span className="text-emerald-300">回复率:</span>
@@ -724,6 +824,60 @@ export default function HomePage() {
                   </div>
                 </div>
 
+                {/* 评级、状态与特别关注行 */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1">
+                      岗位评级
+                    </label>
+                    <select
+                      value={editRating}
+                      onChange={(e) => setEditRating(e.target.value)}
+                      className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-bold cursor-pointer"
+                    >
+                      <option value="S+">🔥 S+ 顶尖向往</option>
+                      <option value="S">⭐ S 极度契合</option>
+                      <option value="A+">🌟 A+ 优质机会</option>
+                      <option value="A">✨ A 值得一试</option>
+                      <option value="A-">👍 A- 基本契合</option>
+                      <option value="B">🎯 B 普通日常 (默认)</option>
+                      <option value="C">📦 C 保底兜底</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1">
+                      初始状态
+                    </label>
+                    <select
+                      value={editStatus}
+                      onChange={(e) => setEditStatus(e.target.value)}
+                      className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-bold cursor-pointer"
+                    >
+                      <option value="APPLIED">🚀 已直接投递 (APPLIED)</option>
+                      <option value="SAVED">📌 先保存/未投递 (SAVED)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1">
+                      特别关注
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setEditStarred((v) => !v)}
+                      className={`w-full py-1.5 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                        editStarred
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-400 shadow-sm shadow-amber-500/30'
+                          : 'bg-slate-950 text-slate-400 border-slate-700 hover:text-slate-200'
+                      }`}
+                    >
+                      <Star className={`w-3.5 h-3.5 ${editStarred ? 'text-amber-400 fill-amber-400' : 'text-slate-500'}`} />
+                      <span>{editStarred ? '⭐ 已设为特别关注' : '点击设为特别关注'}</span>
+                    </button>
+                  </div>
+                </div>
+
                 {/* 提交按钮 */}
                 <button
                   type="button"
@@ -801,11 +955,97 @@ export default function HomePage() {
         {/* 模块三：底部「状态流转看板 / 列表」 */}
         {/* ============================================================== */}
         <section className="space-y-4">
+          {/* 多维快捷筛选工具栏 */}
+          <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 text-xs flex flex-wrap items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-slate-400 font-bold flex items-center gap-1">
+                <Filter className="w-3.5 h-3.5 text-blue-400" />
+                多维筛选:
+              </span>
+
+              {/* 平台筛选 */}
+              <select
+                value={filterPlatform}
+                onChange={(e) => setFilterPlatform(e.target.value)}
+                className="px-2 py-1 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 font-semibold focus:outline-none focus:border-blue-500 cursor-pointer"
+              >
+                <option value="ALL">全部平台</option>
+                <option value="INDEED">Indeed</option>
+                <option value="LINKEDIN">LinkedIn</option>
+                <option value="APEC">Apec</option>
+                <option value="HELLOWORK">HelloWork</option>
+                <option value="WTTJ">WTTJ</option>
+                <option value="OTHER">其它渠道</option>
+              </select>
+
+              {/* 最低评级筛选 */}
+              <select
+                value={filterMinRating}
+                onChange={(e) => setFilterMinRating(e.target.value)}
+                className="px-2 py-1 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 font-semibold focus:outline-none focus:border-blue-500 cursor-pointer"
+              >
+                <option value="ALL">评级不限</option>
+                <option value="S+">≥ S+ 顶级</option>
+                <option value="S">≥ S 极佳</option>
+                <option value="A+">≥ A+ 优质</option>
+                <option value="A">≥ A 较好</option>
+                <option value="A-">≥ A- 良好</option>
+                <option value="B">≥ B 及格</option>
+              </select>
+
+              {/* 合同类型筛选 */}
+              <select
+                value={filterContract}
+                onChange={(e) => setFilterContract(e.target.value)}
+                className="px-2 py-1 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 font-semibold focus:outline-none focus:border-blue-500 cursor-pointer"
+              >
+                <option value="ALL">全部合同</option>
+                <option value="CDI">CDI</option>
+                <option value="CDD">CDD</option>
+                <option value="FREELANCE">Freelance</option>
+                <option value="STAGE">Stage</option>
+                <option value="ALTERNANCE">Alternance</option>
+              </select>
+
+              {/* 仅看星标开关 */}
+              <button
+                type="button"
+                onClick={() => setFilterStarredOnly((v) => !v)}
+                className={`px-2.5 py-1 rounded-lg border font-bold transition flex items-center gap-1 ${
+                  filterStarredOnly
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500 shadow-sm shadow-amber-500/20'
+                    : 'bg-slate-950 text-slate-400 border-slate-700 hover:text-slate-200'
+                }`}
+              >
+                <Star className={`w-3.5 h-3.5 ${filterStarredOnly ? 'text-amber-400 fill-amber-400' : 'text-slate-500'}`} />
+                <span>仅看特别关注</span>
+              </button>
+            </div>
+
+            {/* 重置筛选 */}
+            {(filterPlatform !== 'ALL' || filterMinRating !== 'ALL' || filterContract !== 'ALL' || filterStarredOnly) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterPlatform('ALL');
+                  setFilterMinRating('ALL');
+                  setFilterContract('ALL');
+                  setFilterStarredOnly(false);
+                }}
+                className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition font-medium flex items-center gap-1"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>重置过滤</span>
+              </button>
+            )}
+          </div>
+
           {/* 状态流转 Tab 切换 */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
             {(
               [
                 'ALL',
+                'SAVED',
                 'APPLIED',
                 'HR_CALL',
                 'TECH_INTERVIEW',
@@ -876,18 +1116,24 @@ export default function HomePage() {
                   }
                 }
 
+                const isStarred = Boolean(app.is_starred ?? app.isStarred);
                 return (
                   <div
                     key={app.id}
-                    className="p-4 sm:p-5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition space-y-3.5 shadow-lg"
+                    className={`p-4 sm:p-5 rounded-2xl bg-slate-900 border transition space-y-3.5 shadow-lg relative ${
+                      isStarred
+                        ? 'border-amber-400/80 shadow-amber-500/10 ring-1 ring-amber-400/30'
+                        : 'border-slate-800 hover:border-slate-700'
+                    }`}
                   >
-                    {/* 卡片头部：公司、合同、语言、距今天数 */}
+                    {/* 卡片头部：公司、评级、合同、语言、距今天数 */}
                     <div className="flex items-start justify-between gap-2">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-base sm:text-lg font-black text-slate-100">
                             {app.company_raw}
                           </span>
+                          {getRatingBadge(app.rating)}
                           <span
                             className={`px-2 py-0.5 rounded text-[11px] font-extrabold border ${
                               app.contract_type === 'CDD'
@@ -924,7 +1170,7 @@ export default function HomePage() {
                         </h3>
                       </div>
 
-                      {/* 投递时间与状态标识 + 编辑/删除操作按钮 */}
+                      {/* 投递时间与状态标识 + 星标/编辑/删除操作按钮 */}
                       <div className="text-right shrink-0 space-y-2">
                         <div className="flex items-center gap-1.5 justify-end">
                           <span
@@ -932,6 +1178,20 @@ export default function HomePage() {
                           >
                             {statusMeta.label}
                           </span>
+
+                          {/* 特别关注 ⭐ 切换按钮 */}
+                          <button
+                            type="button"
+                            onClick={(e) => handleToggleStar(app, e)}
+                            className={`p-1 rounded-lg transition ${
+                              isStarred
+                                ? 'text-amber-400 bg-amber-500/15 hover:bg-amber-500/25'
+                                : 'text-slate-500 hover:text-amber-400 hover:bg-slate-800'
+                            }`}
+                            title={isStarred ? '取消特别关注' : '设为特别关注 ⭐'}
+                          >
+                            <Star className={`w-3.5 h-3.5 ${isStarred ? 'fill-amber-400 text-amber-400' : ''}`} />
+                          </button>
 
                           {/* 编辑按钮 */}
                           <button
@@ -1116,6 +1376,7 @@ export default function HomePage() {
                       <div className="flex items-center gap-1 overflow-x-auto">
                         {(
                           [
+                            'SAVED',
                             'APPLIED',
                             'HR_CALL',
                             'TECH_INTERVIEW',

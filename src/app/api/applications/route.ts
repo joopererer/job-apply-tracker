@@ -96,6 +96,8 @@ export async function POST(request: NextRequest) {
     }
 
     const postedAt = body.posted_at || body.postedAt || null;
+    const rating = body.rating || 'B';
+    const isStarred = body.is_starred ?? body.isStarred ?? false;
 
     const newRecord: Record<string, any> = {
       platform: body.platform || 'OTHER',
@@ -112,6 +114,8 @@ export async function POST(request: NextRequest) {
       language: body.language || 'FR',
       jd_content: body.jd_content || body.jdContent || '',
       status: body.status || 'APPLIED',
+      rating: rating,
+      is_starred: isStarred,
       notes: body.notes || null,
       hr_contact: hrContact,
       posted_at: postedAt,
@@ -141,6 +145,30 @@ export async function POST(request: NextRequest) {
     // 容错：如果 Supabase 表尚未添加 posted_at 字段，自动移除并降级保存
     if (error && error.message?.includes('posted_at')) {
       delete newRecord.posted_at;
+      const retry = await supabase
+        .from('applications')
+        .insert(newRecord)
+        .select()
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
+
+    // 容错：如果 Supabase 表尚未添加 rating 字段，自动移除并降级保存
+    if (error && error.message?.includes('rating')) {
+      delete newRecord.rating;
+      const retry = await supabase
+        .from('applications')
+        .insert(newRecord)
+        .select()
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
+
+    // 容错：如果 Supabase 表尚未添加 is_starred 字段，自动移除并降级保存
+    if (error && error.message?.includes('is_starred')) {
+      delete newRecord.is_starred;
       const retry = await supabase
         .from('applications')
         .insert(newRecord)
@@ -219,8 +247,12 @@ export async function PATCH(request: NextRequest) {
       updates.salary_range = body.salary_range ?? body.salaryRange;
     }
 
-    // 5. 状态与时间
+    // 5. 状态、评级、特别关注与时间
     if (body.status !== undefined) updates.status = body.status;
+    if (body.rating !== undefined) updates.rating = body.rating;
+    if (body.is_starred !== undefined || body.isStarred !== undefined) {
+      updates.is_starred = body.is_starred ?? body.isStarred;
+    }
     if (body.posted_at !== undefined || body.postedAt !== undefined) {
       updates.posted_at = body.posted_at ?? body.postedAt;
     }
@@ -256,8 +288,10 @@ export async function PATCH(request: NextRequest) {
       .select()
       .single();
 
-    if (error && error.message?.includes('posted_at')) {
-      delete updates.posted_at;
+    if (error && (error.message?.includes('posted_at') || error.message?.includes('rating') || error.message?.includes('is_starred'))) {
+      if (error.message?.includes('posted_at')) delete updates.posted_at;
+      if (error.message?.includes('rating')) delete updates.rating;
+      if (error.message?.includes('is_starred')) delete updates.is_starred;
       const retry = await supabase
         .from('applications')
         .update(updates)

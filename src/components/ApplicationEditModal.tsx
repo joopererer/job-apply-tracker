@@ -37,11 +37,22 @@ const PLATFORMS: JobPlatform[] = [
 ];
 
 const STATUSES: { value: string; label: string }[] = [
-  { value: 'APPLIED', label: '已投递 (Applied)' },
-  { value: 'HR_CALL', label: 'HR 沟通中 (HR Call)' },
-  { value: 'TECH_INTERVIEW', label: '技术面试 (Tech Interview)' },
-  { value: 'OFFER', label: '已获 Offer (Offer)' },
-  { value: 'REJECTED', label: '未通过 (Rejected)' },
+  { value: 'SAVED', label: '📌 未投递 (Saved)' },
+  { value: 'APPLIED', label: '🚀 已投递 (Applied)' },
+  { value: 'HR_CALL', label: '📞 HR 沟通中 (HR Call)' },
+  { value: 'TECH_INTERVIEW', label: '💻 技术面试 (Tech Interview)' },
+  { value: 'OFFER', label: '🎉 已获 Offer (Offer)' },
+  { value: 'REJECTED', label: '❌ 未通过 (Rejected)' },
+];
+
+const RATINGS = [
+  { value: 'S+', label: '🔥 S+ (顶级心仪/必投)' },
+  { value: 'S', label: '💎 S (重点目标)' },
+  { value: 'A+', label: '🌟 A+ (优质岗位)' },
+  { value: 'A', label: '✨ A (良好机会)' },
+  { value: 'A-', label: '⭐ A- (合格/可投)' },
+  { value: 'B', label: '🎯 B (基准/海投默认)' },
+  { value: 'C', label: '💤 C (保底/观望)' },
 ];
 
 export default function ApplicationEditModal({
@@ -57,6 +68,8 @@ export default function ApplicationEditModal({
   const [platform, setPlatform] = useState<JobPlatform>('OTHER');
   const [language, setLanguage] = useState<JobLanguage>('FR');
   const [status, setStatus] = useState('APPLIED');
+  const [rating, setRating] = useState('B');
+  const [isStarred, setIsStarred] = useState(false);
   const [location, setLocation] = useState('');
   const [salaryRange, setSalaryRange] = useState('');
   const [postedAt, setPostedAt] = useState('');
@@ -79,6 +92,8 @@ export default function ApplicationEditModal({
       setPlatform((job.platform as JobPlatform) || 'OTHER');
       setLanguage((job.language as JobLanguage) || 'FR');
       setStatus(job.status || 'APPLIED');
+      setRating((job.rating as string) || 'B');
+      setIsStarred(Boolean(job.is_starred ?? job.isStarred));
       setLocation(job.location || '');
       setSalaryRange(job.salary_range || '');
       setPostedAt(job.posted_at || '');
@@ -133,6 +148,8 @@ export default function ApplicationEditModal({
         platform: platform,
         language: language,
         status: status,
+        rating: rating,
+        is_starred: isStarred,
         location: location.trim() || null,
         salary_range: salaryRange.trim() || null,
         posted_at: postedAt.trim() || null,
@@ -233,8 +250,8 @@ export default function ApplicationEditModal({
             </div>
           </div>
 
-          {/* 状态、平台、合同、办公方式、语言 */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          {/* 状态、评级、特别关注与平台 */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
                 当前状态
@@ -242,7 +259,7 @@ export default function ApplicationEditModal({
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
-                className="w-full px-2.5 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500"
+                className="w-full px-2.5 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-semibold"
               >
                 {STATUSES.map((s) => (
                   <option key={s.value} value={s.value}>
@@ -250,6 +267,41 @@ export default function ApplicationEditModal({
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">
+                岗位评级
+              </label>
+              <select
+                value={rating}
+                onChange={(e) => setRating(e.target.value)}
+                className="w-full px-2.5 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-slate-200 focus:outline-none focus:border-blue-500"
+              >
+                {RATINGS.map((r) => (
+                  <option key={r.value} value={r.value}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">
+                特别关注
+              </label>
+              <button
+                type="button"
+                onClick={() => setIsStarred(!isStarred)}
+                className={`w-full py-2 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition border ${
+                  isStarred
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm'
+                    : 'bg-slate-950 text-slate-400 border-slate-700 hover:text-slate-200'
+                }`}
+              >
+                <span>⭐</span>
+                <span>{isStarred ? '已星标关注' : '普通岗位'}</span>
+              </button>
             </div>
 
             <div>
@@ -268,7 +320,10 @@ export default function ApplicationEditModal({
                 ))}
               </select>
             </div>
+          </div>
 
+          {/* 合同、办公方式、语言 */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
                 合同类型
