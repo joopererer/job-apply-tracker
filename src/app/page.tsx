@@ -72,6 +72,15 @@ const STATUS_LABELS: Record<TabStatus, { label: string; color: string; badge: st
   REJECTED: { label: '❌ 未通过', color: 'bg-rose-950/60 text-rose-300 border-rose-800/60', badge: 'bg-rose-600' },
 };
 
+const PLATFORM_NAMES: Record<string, string> = {
+  INDEED: 'Indeed',
+  LINKEDIN: 'LinkedIn',
+  APEC: 'Apec',
+  HELLOWORK: 'HelloWork',
+  WTTJ: 'WTTJ',
+  OTHER: '其它渠道',
+};
+
 const RATING_WEIGHT: Record<string, number> = {
   'S+': 7,
   S: 6,
@@ -436,6 +445,34 @@ export default function HomePage() {
     const activeApplied = total - saved;
     const replyRate = activeApplied > 0 ? ((positiveReplies / activeApplied) * 100).toFixed(0) : '0';
     return { total, saved, hrCalls, interviews, offers, replyRate };
+  }, [applications]);
+
+  // 计算各平台记录数量与当前有记录的平台列表
+  const platformStats = useMemo(() => {
+    const counts: Record<string, number> = {
+      ALL: applications.length,
+      OTHER: 0,
+    };
+    for (const app of applications) {
+      const p = (app.platform || 'OTHER').toUpperCase();
+      counts[p] = (counts[p] || 0) + 1;
+    }
+
+    const standardOrder = ['INDEED', 'LINKEDIN', 'APEC', 'HELLOWORK', 'WTTJ'];
+    const activeCustom = Object.keys(counts).filter(
+      (k) => k !== 'ALL' && k !== 'OTHER' && counts[k] > 0
+    );
+
+    const sorted = activeCustom.sort((a, b) => {
+      const idxA = standardOrder.indexOf(a);
+      const idxB = standardOrder.indexOf(b);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return a.localeCompare(b);
+    });
+
+    return { counts, platforms: sorted };
   }, [applications]);
 
   // 根据当前标签与多维过滤器筛选列表
@@ -980,13 +1017,20 @@ export default function HomePage() {
                 onChange={(e) => setFilterPlatform(e.target.value)}
                 className="px-2 py-1 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 font-semibold focus:outline-none focus:border-blue-500 cursor-pointer"
               >
-                <option value="ALL">全部平台</option>
-                <option value="INDEED">Indeed</option>
-                <option value="LINKEDIN">LinkedIn</option>
-                <option value="APEC">Apec</option>
-                <option value="HELLOWORK">HelloWork</option>
-                <option value="WTTJ">WTTJ</option>
-                <option value="OTHER">其它渠道</option>
+                <option value="ALL">全部平台 ({platformStats.counts.ALL || 0})</option>
+                {platformStats.platforms.map((p) => (
+                  <option key={p} value={p}>
+                    {PLATFORM_NAMES[p] || p} ({platformStats.counts[p] || 0})
+                  </option>
+                ))}
+                {!platformStats.platforms.includes(filterPlatform) &&
+                  filterPlatform !== 'ALL' &&
+                  filterPlatform !== 'OTHER' && (
+                    <option value={filterPlatform}>
+                      {PLATFORM_NAMES[filterPlatform] || filterPlatform} (0)
+                    </option>
+                  )}
+                <option value="OTHER">其它渠道 ({platformStats.counts.OTHER || 0})</option>
               </select>
 
               {/* 最低评级筛选 */}
