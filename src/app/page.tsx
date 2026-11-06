@@ -71,48 +71,55 @@ type TabStatus =
   | 'OFFER'
   | 'REJECTED';
 
-// 状态视觉配置（参考 Excel 配色定义：已投递浅绿、面试浅橙、Offer饱满绿、未通过浅灰）
+// 状态视觉配置（参考 Excel 配色定义：已投递鲜绿、HR沟通浅紫、技术面试橙色、Offer饱满绿、未通过灰黑）
 const STATUS_LABELS: Record<TabStatus, { label: string; color: string; badge: string }> = {
   ALL: { label: '全部岗位', color: 'bg-slate-800 text-slate-300', badge: 'bg-slate-800' },
   SAVED: { label: '📌 未投递', color: 'bg-slate-800 text-slate-300 border-slate-700', badge: 'bg-slate-700' },
-  APPLIED: { label: '🚀 已投递', color: 'bg-emerald-950/80 text-emerald-300 border-emerald-700/60', badge: 'bg-emerald-600' },
-  HR_CALL: { label: '📞 HR 沟通', color: 'bg-amber-950/80 text-amber-300 border-amber-700/60', badge: 'bg-amber-500' },
-  TECH_INTERVIEW: { label: '💻 技术面试', color: 'bg-amber-950/80 text-amber-300 border-amber-700/60', badge: 'bg-amber-500' },
-  OFFER: { label: '🎉 已获 Offer', color: 'bg-emerald-700 text-emerald-100 border-emerald-400 font-extrabold', badge: 'bg-emerald-500' },
-  REJECTED: { label: '❌ 未通过', color: 'bg-slate-800 text-slate-400 border-slate-700', badge: 'bg-slate-600' },
+  APPLIED: { label: '🚀 已投递', color: 'bg-emerald-950/90 text-emerald-300 border-emerald-700/70', badge: 'bg-emerald-600' },
+  HR_CALL: { label: '📞 HR 沟通', color: 'bg-purple-950/90 text-purple-300 border-purple-700/70', badge: 'bg-purple-600' },
+  TECH_INTERVIEW: { label: '💻 技术面试', color: 'bg-amber-950/90 text-amber-200 border-amber-600/70', badge: 'bg-amber-500' },
+  OFFER: { label: '🎉 已获 Offer', color: 'bg-emerald-700 text-emerald-100 border-emerald-400 font-extrabold shadow-sm', badge: 'bg-emerald-500' },
+  REJECTED: { label: '❌ 未通过', color: 'bg-zinc-800/90 text-zinc-400 border-zinc-700', badge: 'bg-zinc-700' },
 };
 
-// 卡片背景与边框色彩计算（依据 Excel 状态分类与 2 个月无回复自动判定）
+// 卡片背景与边框色彩计算（依据 Excel 状态分类、2 个月无回复自动判定与水印盖章）
 function getCardStyle(status: string, appliedAt: string | null | undefined, isStarred: boolean) {
   const overTwoMonths = status === 'APPLIED' && isOverTwoMonths(appliedAt);
 
   let bgStyle = 'bg-slate-900 hover:bg-slate-850';
   let borderStyle = 'border-slate-800 hover:border-slate-700';
+  let stampType: 'SUCCESS' | 'FAILED' | null = null;
 
   if (overTwoMonths) {
     // 超过 2 个月无回复的已投递：浅红色
-    bgStyle = 'bg-rose-950/20 hover:bg-rose-950/30';
-    borderStyle = 'border-rose-900/40 hover:border-rose-700/60';
+    bgStyle = 'bg-rose-950/30 hover:bg-rose-950/45';
+    borderStyle = 'border-rose-900/50 hover:border-rose-700/70';
   } else if (status === 'APPLIED') {
-    // 已投递：浅绿色
-    bgStyle = 'bg-emerald-950/20 hover:bg-emerald-950/30';
-    borderStyle = 'border-emerald-800/40 hover:border-emerald-700/60';
-  } else if (status === 'HR_CALL' || status === 'TECH_INTERVIEW') {
-    // 面试沟通中：浅橙色
-    bgStyle = 'bg-amber-950/20 hover:bg-amber-950/30';
-    borderStyle = 'border-amber-800/40 hover:border-amber-700/60';
+    // 已投递：更鲜明低透明度的浅绿色
+    bgStyle = 'bg-emerald-950/40 hover:bg-emerald-950/55';
+    borderStyle = 'border-emerald-700/50 hover:border-emerald-600/70';
+  } else if (status === 'HR_CALL') {
+    // HR 沟通：浅紫色
+    bgStyle = 'bg-purple-950/35 hover:bg-purple-950/50';
+    borderStyle = 'border-purple-800/50 hover:border-purple-600/70';
+  } else if (status === 'TECH_INTERVIEW') {
+    // 技术面试：更深、低透明度的高辨识浅橙色
+    bgStyle = 'bg-amber-950/40 hover:bg-amber-950/55';
+    borderStyle = 'border-amber-700/50 hover:border-amber-600/70';
   } else if (status === 'OFFER') {
-    // 已获 Offer：没那么透明的深绿色
-    bgStyle = 'bg-emerald-900/35 hover:bg-emerald-900/45';
-    borderStyle = 'border-emerald-500/70 hover:border-emerald-400 shadow-lg shadow-emerald-500/15';
+    // 已获 Offer：更饱满的绿色，带 Success 盖章水印
+    bgStyle = 'bg-emerald-900/45 hover:bg-emerald-900/60';
+    borderStyle = 'border-emerald-500/80 hover:border-emerald-400 shadow-xl shadow-emerald-500/20';
+    stampType = 'SUCCESS';
   } else if (status === 'REJECTED') {
-    // 未通过：浅灰色 (弱化显示)
-    bgStyle = 'bg-slate-900/40 hover:bg-slate-900/60 opacity-80 hover:opacity-100';
-    borderStyle = 'border-slate-800/80 hover:border-slate-700';
+    // 未通过：深黑灰色调，带 Failed 盖章水印
+    bgStyle = 'bg-[#0b0e14]/90 hover:bg-[#0f131a]/95 opacity-75 hover:opacity-100';
+    borderStyle = 'border-zinc-800 hover:border-zinc-700';
+    stampType = 'FAILED';
   } else if (status === 'SAVED') {
-    // 未投递：保持现状暗调
-    bgStyle = 'bg-slate-900 hover:bg-slate-850';
-    borderStyle = 'border-slate-800 hover:border-slate-700';
+    // 未投递：中性冷灰
+    bgStyle = 'bg-slate-900/90 hover:bg-slate-850';
+    borderStyle = 'border-slate-700/70 hover:border-slate-600';
   }
 
   // 特别关注维持金色高亮描边与发光
@@ -120,7 +127,7 @@ function getCardStyle(status: string, appliedAt: string | null | undefined, isSt
     borderStyle = 'border-amber-400/90 shadow-lg shadow-amber-500/15 ring-1 ring-amber-400/40';
   }
 
-  return { bgStyle, borderStyle, overTwoMonths };
+  return { bgStyle, borderStyle, overTwoMonths, stampType };
 }
 
 const PLATFORM_NAMES: Record<string, string> = {
@@ -1223,7 +1230,7 @@ export default function HomePage() {
                 }
 
                 const isStarred = Boolean(app.is_starred ?? app.isStarred);
-                const { bgStyle, borderStyle, overTwoMonths } = getCardStyle(
+                const { bgStyle, borderStyle, overTwoMonths, stampType } = getCardStyle(
                   currentStatus,
                   app.applied_at,
                   isStarred
@@ -1232,8 +1239,20 @@ export default function HomePage() {
                 return (
                   <div
                     key={app.id}
-                    className={`p-4 sm:p-5 rounded-2xl ${bgStyle} border ${borderStyle} transition space-y-3.5 shadow-lg relative`}
+                    className={`p-4 sm:p-5 rounded-2xl ${bgStyle} border ${borderStyle} transition space-y-3.5 shadow-lg relative overflow-hidden`}
                   >
+                    {/* 水印盖章效果 (OFFER 成功章 / REJECTED 失败章) */}
+                    {stampType === 'SUCCESS' && (
+                      <div className="absolute right-28 sm:right-36 top-3 pointer-events-none select-none opacity-40 transform -rotate-12 border-2 border-dashed border-emerald-400 text-emerald-300 font-black tracking-widest text-[11px] sm:text-xs px-2.5 py-0.5 rounded uppercase shadow-sm shadow-emerald-500/20">
+                        🎉 OFFER · SUCCESS
+                      </div>
+                    )}
+                    {stampType === 'FAILED' && (
+                      <div className="absolute right-28 sm:right-36 top-3 pointer-events-none select-none opacity-30 transform -rotate-12 border-2 border-dashed border-zinc-500 text-zinc-400 font-black tracking-widest text-[11px] sm:text-xs px-2.5 py-0.5 rounded uppercase">
+                        FAILED · 未通过
+                      </div>
+                    )}
+
                     {/* 卡片头部：公司、评级、合同、语言、距今天数 */}
                     <div className="flex items-start justify-between gap-2">
                       <div className="space-y-1">
