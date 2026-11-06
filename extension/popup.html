@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,15 +11,27 @@
       margin: 0;
       padding: 0;
     }
+
+    /* 让 body 成为纵向弹性容器，固定宽度并撑满最小高度 */
     body {
       width: 380px;
-      min-height: 400px;
+      min-height: 420px;
+      display: flex;
+      flex-direction: column;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       background-color: #090d16;
       color: #f1f5f9;
       padding: 14px;
       font-size: 13px;
     }
+
+    /* 中间动态内容区域自动撑开空间，把设置挤到最底部 */
+    .content-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
     .header {
       display: flex;
       align-items: center;
@@ -27,11 +40,13 @@
       border-bottom: 1px solid #1e293b;
       margin-bottom: 12px;
     }
+
     .brand {
       display: flex;
       align-items: center;
       gap: 8px;
     }
+
     .brand-icon {
       width: 24px;
       height: 24px;
@@ -43,12 +58,14 @@
       font-size: 12px;
       font-weight: bold;
     }
+
     .brand-title {
       font-size: 14px;
       font-weight: 800;
       color: #ffffff;
       letter-spacing: -0.2px;
     }
+
     .status-dot {
       width: 8px;
       height: 8px;
@@ -57,16 +74,16 @@
       display: inline-block;
     }
 
-    /* Loading state */
     .loading-box {
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 40px 10px;
+      padding: 30px 10px;
       text-align: center;
       gap: 12px;
     }
+
     .spinner {
       width: 32px;
       height: 32px;
@@ -75,11 +92,13 @@
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }
+
     @keyframes spin {
-      to { transform: rotate(360deg); }
+      to {
+        transform: rotate(360deg);
+      }
     }
 
-    /* Card */
     .card {
       background-color: #0f172a;
       border: 1px solid #1e293b;
@@ -87,12 +106,14 @@
       padding: 12px;
       margin-bottom: 12px;
     }
+
     .meta-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
       margin-bottom: 8px;
     }
+
     .badge {
       display: inline-block;
       padding: 2px 7px;
@@ -100,46 +121,55 @@
       font-size: 11px;
       font-weight: 700;
     }
+
     .badge-platform {
       background: rgba(59, 130, 246, 0.2);
       color: #60a5fa;
       border: 1px solid rgba(59, 130, 246, 0.3);
     }
+
     .badge-cdi {
       background: rgba(16, 185, 129, 0.15);
       color: #34d399;
       border: 1px solid rgba(16, 185, 129, 0.3);
     }
+
     .badge-cdd {
       background: rgba(245, 158, 11, 0.15);
       color: #fbbf24;
       border: 1px solid rgba(245, 158, 11, 0.3);
     }
+
     .badge-freelance {
       background: rgba(168, 85, 247, 0.15);
       color: #c084fc;
       border: 1px solid rgba(168, 85, 247, 0.3);
     }
+
     .badge-stage {
       background: rgba(236, 72, 153, 0.15);
       color: #f472b6;
       border: 1px solid rgba(236, 72, 153, 0.3);
     }
+
     .badge-alternance {
       background: rgba(14, 165, 233, 0.15);
       color: #38bdf8;
       border: 1px solid rgba(14, 165, 233, 0.3);
     }
+
     .badge-unknown {
       background: rgba(148, 163, 184, 0.15);
       color: #94a3b8;
       border: 1px solid rgba(148, 163, 184, 0.3);
     }
+
     .badge-workmode {
       background: rgba(56, 189, 248, 0.15);
       color: #38bdf8;
       border: 1px solid rgba(56, 189, 248, 0.3);
     }
+
     .badge-lang {
       background: rgba(99, 102, 241, 0.15);
       color: #818cf8;
@@ -153,6 +183,7 @@
       margin-bottom: 4px;
       line-height: 1.2;
     }
+
     .job-title {
       font-size: 13px;
       font-weight: 600;
@@ -160,6 +191,7 @@
       margin-bottom: 10px;
       line-height: 1.3;
     }
+
     .info-list {
       display: flex;
       flex-wrap: wrap;
@@ -167,7 +199,6 @@
       margin-bottom: 8px;
     }
 
-    /* Warning box */
     .warning-box {
       background: linear-gradient(180deg, rgba(69, 10, 10, 0.6), rgba(120, 53, 15, 0.5));
       border: 1.5px solid #f59e0b;
@@ -175,6 +206,7 @@
       padding: 10px;
       margin-bottom: 12px;
     }
+
     .warning-title {
       display: flex;
       align-items: center;
@@ -184,6 +216,7 @@
       color: #fef08a;
       margin-bottom: 6px;
     }
+
     .dup-item {
       background: rgba(15, 23, 42, 0.8);
       border: 1px solid rgba(245, 158, 11, 0.3);
@@ -194,10 +227,10 @@
       line-height: 1.4;
     }
 
-    /* Inputs */
     .field-group {
       margin-bottom: 8px;
     }
+
     .field-label {
       display: block;
       font-size: 11px;
@@ -205,6 +238,7 @@
       font-weight: 600;
       margin-bottom: 3px;
     }
+
     .input-text {
       width: 100%;
       background: #020617;
@@ -215,11 +249,11 @@
       font-size: 12px;
       outline: none;
     }
+
     .input-text:focus {
       border-color: #3b82f6;
     }
 
-    /* Buttons */
     .btn {
       width: 100%;
       padding: 9px 12px;
@@ -232,39 +266,45 @@
       align-items: center;
       justify-content: center;
       gap: 6px;
-      transition: all 0.15s ease;
     }
+
     .btn-primary {
       background: #2563eb;
       color: #ffffff;
       box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
     }
+
     .btn-primary:hover {
       background: #1d4ed8;
     }
+
     .btn-primary:disabled {
       background: #1e293b;
       color: #64748b;
       cursor: not-allowed;
       box-shadow: none;
     }
+
     .btn-secondary {
       background: #1e293b;
       color: #cbd5e1;
       margin-top: 6px;
     }
+
     .btn-secondary:hover {
       background: #334155;
     }
 
     .success-box {
       text-align: center;
-      padding: 30px 10px;
+      padding: 20px 10px;
     }
+
     .success-icon {
       font-size: 36px;
       margin-bottom: 8px;
     }
+
     .error-box {
       background: rgba(127, 29, 29, 0.4);
       border: 1px solid #991b1b;
@@ -276,6 +316,7 @@
     }
   </style>
 </head>
+
 <body>
   <div class="header">
     <div class="brand">
@@ -284,125 +325,150 @@
     </div>
     <div style="display: flex; align-items: center; gap: 6px;">
       <span class="status-dot"></span>
-      <span style="font-size: 11px; color: #94a3b8;">本地服务</span>
+      <span style="font-size: 11px; color: #94a3b8;" id="env-badge-text">本地服务</span>
     </div>
   </div>
 
-  <!-- Loading State -->
-  <div id="loading" class="loading-box">
-    <div class="spinner"></div>
-    <div style="font-weight: 700; font-size: 13px; color: #e2e8f0;">正在提取当前标签页职位信息...</div>
-    <div style="font-size: 11px; color: #64748b;">解析 JSON-LD · 提取 DOM · 核对历史投递</div>
+  <!-- 中间内容区域（使用 flex: 1 自动撑高） -->
+  <div class="content-container">
+    <!-- Loading State -->
+    <div id="loading" class="loading-box">
+      <div class="spinner"></div>
+      <div style="font-weight: 700; font-size: 13px; color: #e2e8f0;">正在提取当前标签页职位信息...</div>
+      <div style="font-size: 11px; color: #64748b;">解析 JSON-LD · 提取 DOM · 核对历史投递</div>
+    </div>
+
+    <!-- Error State -->
+    <div id="error-view" style="display: none;">
+      <div class="error-box" id="error-msg">未能提取当前页面职位信息</div>
+      <button class="btn btn-primary" id="btn-retry">重新抓取</button>
+    </div>
+
+    <!-- Success State -->
+    <div id="success-view" class="success-box" style="display: none;">
+      <div class="success-icon">✅</div>
+      <div style="font-size: 15px; font-weight: 800; color: #ffffff; margin-bottom: 4px;">投递记录已成功入库！</div>
+      <div style="font-size: 12px; color: #94a3b8; margin-bottom: 16px;" id="success-job-name"></div>
+      <button class="btn btn-primary" id="btn-open-board">打开看板查看</button>
+    </div>
+
+    <!-- Main Scraped Result View -->
+    <div id="main-view" style="display: none;">
+      <div id="warning-section" class="warning-box" style="display: none;">
+        <div class="warning-title">
+          <span>⚠️</span>
+          <span id="warning-count-text">检测到高危重复投递！</span>
+        </div>
+        <div id="dup-list"></div>
+        <div style="margin-top: 8px;">
+          <label
+            style="font-size: 11px; color: #fed7aa; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+            <input type="checkbox" id="chk-force"> 确认不同岗位，允许强制记录
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="meta-row">
+          <span class="badge badge-platform" id="val-platform">PLATFORM</span>
+          <span style="font-size: 11px; color: #64748b;" id="val-id"></span>
+        </div>
+        <div class="job-company" id="val-company">公司名称</div>
+        <div class="job-title" id="val-title">职位名称</div>
+
+        <div class="info-list">
+          <span class="badge badge-cdi" id="val-contract">CDI</span>
+          <span class="badge badge-workmode" id="val-workmode" style="display: none;">🏢 现场办公</span>
+          <span class="badge badge-lang" id="val-lang">🇫🇷 FR</span>
+          <span class="badge" style="background: rgba(148, 163, 184, 0.1); color: #cbd5e1; border: 1px solid #334155;"
+            id="val-location">Paris</span>
+          <span class="badge"
+            style="background: rgba(16, 185, 129, 0.1); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.2);"
+            id="val-salary">薪资未注明</span>
+          <span class="badge"
+            style="background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid #334155; display: none;"
+            id="val-posted">📅 发布日期</span>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+        <div class="field-group" style="margin-bottom: 0;">
+          <label class="field-label">合同类型 (Contract)</label>
+          <select class="input-text" id="select-contract" style="cursor: pointer;">
+            <option value="CDI">CDI (长期合同)</option>
+            <option value="CDD">CDD (定期合同)</option>
+            <option value="FREELANCE">FREELANCE (自由职业)</option>
+            <option value="STAGE">STAGE (实习)</option>
+            <option value="ALTERNANCE">ALTERNANCE (学徒工)</option>
+            <option value="UNKNOWN">UNKNOWN (待定/未知)</option>
+          </select>
+        </div>
+        <div class="field-group" style="margin-bottom: 0;">
+          <label class="field-label">办公方式 (Work Mode)</label>
+          <select class="input-text" id="select-workmode" style="cursor: pointer;">
+            <option value="">未注明 / 默认</option>
+            <option value="ONSITE">🏢 现场办公 (On-site)</option>
+            <option value="HYBRID">🔄 混合办公 (Hybrid)</option>
+            <option value="REMOTE">🏠 远程办公 (Remote)</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+        <div class="field-group" style="margin-bottom: 0;">
+          <label class="field-label">工作地点 (Location)</label>
+          <input type="text" class="input-text" id="input-location" placeholder="如: Paris (75)">
+        </div>
+        <div class="field-group" style="margin-bottom: 0;">
+          <label class="field-label">薪资范围 (Salary)</label>
+          <input type="text" class="input-text" id="input-salary" placeholder="如: 45k - 55k € 或面议">
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+        <div class="field-group" style="margin-bottom: 0;">
+          <label class="field-label">发布日期 (Posted)</label>
+          <input type="text" class="input-text" id="input-posted" placeholder="如: 2026-10-25">
+        </div>
+        <div class="field-group" style="margin-bottom: 0;">
+          <label class="field-label">HR 联系方式 (姓名/电话)</label>
+          <input type="text" class="input-text" id="input-hr" placeholder="如: 06 12 34 56 78 或 Marie">
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">投递备注笔记</label>
+        <input type="text" class="input-text" id="input-notes" placeholder="如: 投递版本、内推码等...">
+      </div>
+
+      <div style="margin-top: 10px;">
+        <button class="btn btn-primary" id="btn-save">✨ 确认记录投递</button>
+        <button class="btn btn-secondary" id="btn-close">关闭弹窗</button>
+      </div>
+    </div>
   </div>
 
-  <!-- Error State -->
-  <div id="error-view" style="display: none;">
-    <div class="error-box" id="error-msg">未能提取当前页面职位信息</div>
-    <button class="btn btn-primary" id="btn-retry">重新抓取</button>
-  </div>
-
-  <!-- Success State -->
-  <div id="success-view" class="success-box" style="display: none;">
-    <div class="success-icon">✅</div>
-    <div style="font-size: 15px; font-weight: 800; color: #ffffff; margin-bottom: 4px;">投递记录已成功入库！</div>
-    <div style="font-size: 12px; color: #94a3b8; margin-bottom: 16px;" id="success-job-name"></div>
-    <button class="btn btn-primary" id="btn-open-board">打开看板查看</button>
-  </div>
-
-  <!-- Main Scraped Result View -->
-  <div id="main-view" style="display: none;">
-    <!-- ⚠️ Duplicate Warning Alert -->
-    <div id="warning-section" class="warning-box" style="display: none;">
-      <div class="warning-title">
-        <span>⚠️</span>
-        <span id="warning-count-text">检测到高危重复投递！</span>
+  <!-- ⚙️ 绝对吸底的后端环境设置面板 -->
+  <div style="margin-top: auto; padding-top: 8px; border-top: 1px dashed #1e293b; font-size: 11px;">
+    <span id="toggle-settings"
+      style="cursor: pointer; color: #60a5fa; display: inline-flex; align-items: center; gap: 4px;">
+      ⚙️ 后端环境设置 (<span id="current-env-label">本地</span>)
+    </span>
+    <div id="settings-panel"
+      style="display: none; margin-top: 6px; background: #020617; padding: 8px; border-radius: 8px; border: 1px solid #334155;">
+      <label class="field-label" style="margin-bottom: 2px;">Vercel 线上 API 地址</label>
+      <input type="text" class="input-text" id="api-url-input" placeholder="留空则默认 http://localhost:3000"
+        style="margin-bottom: 6px; font-size: 11px;" />
+      <div style="display: flex; gap: 6px;">
+        <button class="btn btn-primary" id="save-api-btn"
+          style="padding: 4px; font-size: 11px; height: 26px;">保存配置</button>
+        <button class="btn btn-secondary" id="reset-api-btn"
+          style="padding: 4px; font-size: 11px; height: 26px; margin-top: 0;">恢复本地</button>
       </div>
-      <div id="dup-list"></div>
-      <div style="margin-top: 8px;">
-        <label style="font-size: 11px; color: #fed7aa; display: flex; align-items: center; gap: 6px; cursor: pointer;">
-          <input type="checkbox" id="chk-force"> 确认不同岗位，允许强制记录
-        </label>
-      </div>
-    </div>
-
-    <!-- Scraped Job Card -->
-    <div class="card">
-      <div class="meta-row">
-        <span class="badge badge-platform" id="val-platform">PLATFORM</span>
-        <span style="font-size: 11px; color: #64748b;" id="val-id"></span>
-      </div>
-      <div class="job-company" id="val-company">公司名称</div>
-      <div class="job-title" id="val-title">职位名称</div>
-
-      <div class="info-list">
-        <span class="badge badge-cdi" id="val-contract">CDI</span>
-        <span class="badge badge-workmode" id="val-workmode" style="display: none;">🏢 现场办公</span>
-        <span class="badge badge-lang" id="val-lang">🇫🇷 FR</span>
-        <span class="badge" style="background: rgba(148, 163, 184, 0.1); color: #cbd5e1; border: 1px solid #334155;" id="val-location">Paris</span>
-        <span class="badge" style="background: rgba(16, 185, 129, 0.1); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.2);" id="val-salary">薪资未注明</span>
-        <span class="badge" style="background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid #334155; display: none;" id="val-posted">📅 发布日期</span>
-      </div>
-    </div>
-
-    <!-- Editable Form Fields (核心字段直接微调) -->
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
-      <div class="field-group" style="margin-bottom: 0;">
-        <label class="field-label">合同类型 (Contract)</label>
-        <select class="input-text" id="select-contract" style="cursor: pointer;">
-          <option value="CDI">CDI (长期合同)</option>
-          <option value="CDD">CDD (定期合同)</option>
-          <option value="FREELANCE">FREELANCE (自由职业)</option>
-          <option value="STAGE">STAGE (实习)</option>
-          <option value="ALTERNANCE">ALTERNANCE (学徒工)</option>
-          <option value="UNKNOWN">UNKNOWN (待定/未知)</option>
-        </select>
-      </div>
-      <div class="field-group" style="margin-bottom: 0;">
-        <label class="field-label">办公方式 (Work Mode)</label>
-        <select class="input-text" id="select-workmode" style="cursor: pointer;">
-          <option value="">未注明 / 默认</option>
-          <option value="ONSITE">🏢 现场办公 (On-site)</option>
-          <option value="HYBRID">🔄 混合办公 (Hybrid)</option>
-          <option value="REMOTE">🏠 远程办公 (Remote)</option>
-        </select>
-      </div>
-    </div>
-
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
-      <div class="field-group" style="margin-bottom: 0;">
-        <label class="field-label">工作地点 (Location)</label>
-        <input type="text" class="input-text" id="input-location" placeholder="如: Paris (75)">
-      </div>
-      <div class="field-group" style="margin-bottom: 0;">
-        <label class="field-label">薪资范围 (Salary)</label>
-        <input type="text" class="input-text" id="input-salary" placeholder="如: 45k - 55k € 或面议">
-      </div>
-    </div>
-
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
-      <div class="field-group" style="margin-bottom: 0;">
-        <label class="field-label">发布日期 (Posted)</label>
-        <input type="text" class="input-text" id="input-posted" placeholder="如: 2026-10-25">
-      </div>
-      <div class="field-group" style="margin-bottom: 0;">
-        <label class="field-label">HR 联系方式 (姓名/电话)</label>
-        <input type="text" class="input-text" id="input-hr" placeholder="如: 06 12 34 56 78 或 Marie">
-      </div>
-    </div>
-
-    <div class="field-group">
-      <label class="field-label">投递备注笔记</label>
-      <input type="text" class="input-text" id="input-notes" placeholder="如: 投递版本、内推码等...">
-    </div>
-
-    <!-- Action Buttons -->
-    <div style="margin-top: 12px;">
-      <button class="btn btn-primary" id="btn-save">✨ 确认记录投递</button>
-      <button class="btn btn-secondary" id="btn-close">关闭弹窗</button>
     </div>
   </div>
 
   <script src="popup.js"></script>
 </body>
-</html>
 
+</html>
