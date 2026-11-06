@@ -82,8 +82,19 @@ const RATING_WEIGHT: Record<string, number> = {
   C: 1,
 };
 
+const RATING_ICONS: Record<string, string> = {
+  'S+': '🔥',
+  S: '💎',
+  'A+': '🌟',
+  A: '✨',
+  'A-': '⭐',
+  B: '🎯',
+  C: '💤',
+};
+
 function getRatingBadge(rating?: string | null) {
   const r = rating || 'B';
+  const icon = RATING_ICONS[r] || '🎯';
   let badgeStyle = 'bg-blue-500/15 text-blue-300 border-blue-500/30';
   if (r === 'S+' || r === 'S') {
     badgeStyle = 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-sm shadow-rose-500/20 font-black';
@@ -94,7 +105,7 @@ function getRatingBadge(rating?: string | null) {
   }
   return (
     <span className={`px-2 py-0.5 rounded text-[11px] border font-bold ${badgeStyle}`}>
-      评级: {r}
+      {icon} 评级: {r}
     </span>
   );
 }

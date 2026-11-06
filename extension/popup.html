@@ -120,28 +120,39 @@
       color: #94a3b8;
       cursor: pointer;
       border-radius: 8px;
-      padding: 3px 8px;
-      font-size: 13px;
+      padding: 4px 6px;
       line-height: 1;
       display: inline-flex;
       align-items: center;
-      gap: 4px;
-      font-weight: 700;
+      justify-content: center;
       transition: all 0.2s ease;
       outline: none;
+    }
+
+    .star-btn .star-icon {
+      fill: none;
+      stroke: #64748b;
+      transition: all 0.2s ease;
     }
 
     .star-btn:hover {
       background: rgba(245, 158, 11, 0.15);
       border-color: #f59e0b;
-      color: #fbbf24;
+    }
+
+    .star-btn:hover .star-icon {
+      stroke: #fbbf24;
     }
 
     .star-btn.active {
       background: rgba(245, 158, 11, 0.25);
       border-color: #f59e0b;
-      color: #fbbf24;
       box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
+    }
+
+    .star-btn.active .star-icon {
+      fill: #fbbf24;
+      stroke: #f59e0b;
     }
 
     .meta-row {
@@ -411,9 +422,10 @@
             <span class="badge badge-platform" id="val-platform">PLATFORM</span>
             <span style="font-size: 11px; color: #64748b;" id="val-id"></span>
           </div>
-          <button type="button" class="star-btn" id="btn-star" title="特别关注 (星标)">
-            <span>⭐</span>
-            <span id="star-text" style="font-size: 11px;">特别关注</span>
+          <button type="button" class="star-btn" id="btn-star" title="设为特别关注 (星标)">
+            <svg class="star-icon" viewBox="0 0 24 24" width="16" height="16" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+            </svg>
           </button>
         </div>
         <div class="job-company" id="val-company">公司名称</div>
@@ -423,8 +435,6 @@
           <span class="badge badge-cdi" id="val-contract">CDI</span>
           <span class="badge badge-workmode" id="val-workmode" style="display: none;">🏢 现场办公</span>
           <span class="badge badge-lang" id="val-lang">🇫🇷 FR</span>
-          <span class="badge" id="val-rating" style="background: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid #3b82f6;">评级: B</span>
-          <span class="badge" id="val-status-badge" style="background: rgba(37, 99, 235, 0.2); color: #60a5fa; border: 1px solid #2563eb;">🚀 已投递</span>
           <span class="badge" style="background: rgba(148, 163, 184, 0.1); color: #cbd5e1; border: 1px solid #334155;"
             id="val-location">Paris</span>
           <span class="badge"
@@ -433,6 +443,8 @@
           <span class="badge"
             style="background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid #334155; display: none;"
             id="val-posted">📅 发布日期</span>
+          <span class="badge" id="val-rating" style="background: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid #3b82f6;">🎯 评级: B</span>
+          <span class="badge" id="val-status-badge" style="background: rgba(37, 99, 235, 0.2); color: #60a5fa; border: 1px solid #2563eb;">🚀 已直接投递</span>
         </div>
       </div>
 

@@ -1245,16 +1245,27 @@ function updateWorkModeBadge(mode) {
   }
 }
 
+// 评级图标映射（与选项一致）
+const RATING_ICONS = {
+  'S+': '🔥',
+  'S': '💎',
+  'A+': '🌟',
+  'A': '✨',
+  'A-': '⭐',
+  'B': '🎯',
+  'C': '💤',
+};
+
 // 更新星标 UI
 function updateStarUI(starred) {
   isStarred = Boolean(starred);
   if (btnStarEl) {
     if (isStarred) {
       btnStarEl.classList.add('active');
-      if (starTextEl) starTextEl.textContent = '已关注';
+      btnStarEl.title = '已设为特别关注 (点击取消)';
     } else {
       btnStarEl.classList.remove('active');
-      if (starTextEl) starTextEl.textContent = '特别关注';
+      btnStarEl.title = '设为特别关注 (星标)';
     }
   }
   if (jobCardEl) {
@@ -1269,16 +1280,18 @@ function updateStarUI(starred) {
 // 更新评级徽章
 function updateRatingBadge(rating) {
   if (!valRatingEl) return;
-  valRatingEl.textContent = `⭐ 评级: ${rating || 'B'}`;
-  if (rating === 'S+' || rating === 'S') {
+  const r = rating || 'B';
+  const icon = RATING_ICONS[r] || '🎯';
+  valRatingEl.textContent = `${icon} 评级: ${r}`;
+  if (r === 'S+' || r === 'S') {
     valRatingEl.style.background = 'rgba(239, 68, 68, 0.2)';
     valRatingEl.style.color = '#fca5a5';
     valRatingEl.style.borderColor = '#ef4444';
-  } else if (rating === 'A+' || rating === 'A' || rating === 'A-') {
+  } else if (r === 'A+' || r === 'A' || r === 'A-') {
     valRatingEl.style.background = 'rgba(245, 158, 11, 0.2)';
     valRatingEl.style.color = '#fcd34d';
     valRatingEl.style.borderColor = '#f59e0b';
-  } else if (rating === 'B') {
+  } else if (r === 'B') {
     valRatingEl.style.background = 'rgba(59, 130, 246, 0.2)';
     valRatingEl.style.color = '#93c5fd';
     valRatingEl.style.borderColor = '#3b82f6';
