@@ -8,6 +8,7 @@ import {
   extractWorkMode,
   detectLanguage,
   cleanAndFormatJd,
+  cleanLocation,
 } from '@/lib/scraper';
 import { supabase, ApplicationRecord, DuplicateCheckResult } from '@/lib/supabase';
 
@@ -205,8 +206,8 @@ export async function POST(request: NextRequest) {
             : (parsedJob.workMode || extractWorkMode(`${mergedJdContent} ${mergedTitleRaw}`)),
         location:
           domExtracted.location !== undefined
-            ? domExtracted.location
-            : parsedJob.location || null,
+            ? (cleanLocation(domExtracted.location) || null)
+            : (cleanLocation(parsedJob.location) || null),
         salaryRange:
           domExtracted.salaryRange !== undefined
             ? domExtracted.salaryRange

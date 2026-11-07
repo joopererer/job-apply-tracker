@@ -160,25 +160,27 @@ async function extractPageJobData() {
     if (!text || typeof text !== 'string') return null;
     const norm = stripDiacritics(text).toLowerCase();
 
-    // 1. 混合办公
+    // 1. 现场办公 (需在 teletravail 前匹配，防止 "pas de teletravail" 被 teletravail 误捕获为 REMOTE)
     if (
-      /(?:\b(?:hybride|hybrid|teletravail\s+partiel)\b|混合办公)/i.test(norm)
-    ) {
-      return 'HYBRID';
-    }
-
-    // 2. 现场办公
-    if (
-      /(?:\b(?:sur\s+site|sur\s+place|presentiel|on[- ]?site)\b|现场办公|坐班)/i.test(
+      /(?:\b(?:pas\s+de\s+teletravail|aucun\s+teletravail|sans\s+teletravail|sur\s+site|sur\s+place|presentiel|on[- ]?site)\b|现场办公|坐班)/i.test(
         norm
       )
     ) {
       return 'ONSITE';
     }
 
+    // 2. 混合办公 (包含 teletravail ponctuel, partiel, regulier, occasionnel, possible, flexible, 1-4 jours de teletravail 等)
+    if (
+      /(?:\b(?:hybride|hybrid|teletravail\s+(?:partiel|ponctuel|regulier|occasionnel|possible|flexible)|(?:\d\s*jours?|\d\s*j)\s*(?:par\s*semaine\s*)?de\s*teletravail|teletravail\s*:\s*\d\s*j)\b|混合办公)/i.test(
+        norm
+      )
+    ) {
+      return 'HYBRID';
+    }
+
     // 3. 远程办公
     if (
-      /(?:\b(?:teletravail\s+complet|full[- ]?remote|100%\s*remote|teletravail|remote)\b|远程办公|远程)/i.test(
+      /(?:\b(?:teletravail\s+(?:complet|total)|full[- ]?remote|100%\s*remote|teletravail|remote)\b|远程办公|远程)/i.test(
         norm
       )
     ) {
@@ -186,6 +188,27 @@ async function extractPageJobData() {
     }
 
     return null;
+  }
+
+  function dedupeLocationString(loc) {
+    if (!loc || typeof loc !== 'string') return '';
+    const parts = loc
+      .split(/,\s*/)
+      .map((p) => p.trim())
+      .filter(Boolean);
+
+    const seen = new Set();
+    const uniqueParts = [];
+
+    for (const part of parts) {
+      const lower = part.toLowerCase();
+      if (!seen.has(lower)) {
+        seen.add(lower);
+        uniqueParts.push(part);
+      }
+    }
+
+    return uniqueParts.join(', ');
   }
 
   function parsePostedDate(raw) {
@@ -1035,13 +1058,95 @@ async function extractPageJobData() {
   }
 
   // -------------------------------------------------------------
-  // 三、 Apec & HelloWork 专属发布时间与字段补充
+  // 三、 Apec & HelloWork 专属 DOM 详情与字段补充
   // -------------------------------------------------------------
   if (isApec) {
-    const apecDateEl = document.querySelector('.date-publication, .card-offer__date');
+    domExtracted.platform = 'APEC';
+
+    // 1. 外部职位 ID 与标准 cleanUrl
+    const apecIdMatch = url.match(/\/detail-offre\/([a-zA-Z0-9]+)/i);
+    if (apecIdMatch) {
+      domExtracted.externalJobId = apecIdMatch[1];
+      domExtracted.cleanUrl = `https://www.apec.fr/candidat/recherche-emploi.html/emploi/detail-offre/${apecIdMatch[1]}`;
+    }
+
+    // 2. 职位标题 (titleRaw)
+    const titleEl = document.querySelector(
+      '#rod-detail-keypoints-title, apec-offre-infos-cles h1, .rod-detail-keypoints-infos h1, .rod-detail-main h1'
+    );
+    if (titleEl && titleEl.innerText) {
+      const cleanTitle = titleEl.innerText.trim();
+      if (cleanTitle && !/recherche/i.test(cleanTitle)) {
+        domExtracted.titleRaw = cleanTitle;
+      }
+    }
+
+    // 3. 公司名称 (companyRaw)
+    const companyEl = document.querySelector(
+      '.rod-detail-keypoints-infos--company p, .rod-detail-keypoints-infos--company, .card-offer__company, .company-name'
+    );
+    if (companyEl && companyEl.innerText) {
+      const cleanComp = companyEl.innerText.trim();
+      if (cleanComp && !/confidentielle/i.test(cleanComp)) {
+        domExtracted.companyRaw = cleanComp;
+      }
+    }
+
+    // 4. 工作地点 (location)
+    const locationEl = document.querySelector(
+      '.rod-detail-keypoints-infos--adress p, .rod-detail-keypoints-infos--adress, .card-offer-location'
+    );
+    if (locationEl && locationEl.innerText) {
+      let locText = locationEl.innerText.replace(/Localiser\s+l'adresse/gi, '').trim();
+      if (locText) {
+        domExtracted.location = dedupeLocationString(locText);
+      }
+    }
+
+    // 5. 发布/更新时间 (postedAt)
+    const apecDateEl = document.querySelector(
+      '.rod-detail-keypoints-infos--date p, .rod-detail-keypoints-infos--date, .date-publication, .card-offer__date'
+    );
     if (apecDateEl && apecDateEl.innerText) {
       const parsed = parsePostedDate(apecDateEl.innerText.trim());
       domExtracted.postedAt = parsed || apecDateEl.innerText.trim();
+    }
+
+    // 6. 关键标签提炼：办公方式 (workMode)、合同类型 (contractType)、薪资范围 (salaryRange)
+    const tagElements = Array.from(
+      document.querySelectorAll(
+        '.rod-detail-keypoints-tags .rod-tooltip-container span, .rod-detail-keypoints-tags span, .rod-tags, .tag-item'
+      )
+    );
+    for (const tagEl of tagElements) {
+      const tagText = (tagEl.innerText || '').trim();
+      if (!tagText) continue;
+
+      // 6.1 办公方式 (Télétravail ponctuel, partiel, régulier, complet 等)
+      if (!domExtracted.workMode || domExtracted.workMode === 'UNKNOWN') {
+        const mode = extractWorkMode(tagText);
+        if (mode) domExtracted.workMode = mode;
+      }
+
+      // 6.2 合同类型 (CDI, CDD, Stage, Alternance 等)
+      if (!domExtracted.contractType || domExtracted.contractType === 'UNKNOWN') {
+        const cType = extractContractType(tagText);
+        if (cType && cType !== 'UNKNOWN') domExtracted.contractType = cType;
+      }
+
+      // 6.3 薪资范围 (如 42 - 52 k€ brut annuel)
+      if (!domExtracted.salaryRange) {
+        const salary = extractSalaryRange(tagText);
+        if (salary) domExtracted.salaryRange = salary;
+      }
+    }
+
+    // 7. 详情正文
+    const jdContainer = document.querySelector(
+      'apec-poste-informations, .rod-detail-main, .rod-detail-description, .offre-content'
+    );
+    if (jdContainer && jdContainer.innerText) {
+      domExtracted.jdContent = jdContainer.innerText.trim();
     }
   }
 
@@ -1126,6 +1231,10 @@ async function extractPageJobData() {
     if (!/plus de \d+ (?:emplois|offres)/i.test(docTitle) && !/^Emplois?\s*:/i.test(docTitle)) {
       finalTitle = docTitle;
     }
+  }
+
+  if (domExtracted.location) {
+    domExtracted.location = dedupeLocationString(domExtracted.location);
   }
 
   const syntheticHtml = `

@@ -187,33 +187,35 @@ export function extractContractType(text: string): ContractType {
 /**
  * 办公模式提取：
  * 匹配：
- * - 现场办公：Sur site, Présentiel, On-site, 现场办公, 坐班 -> ONSITE
- * - 混合办公：Hybride, Hybrid, 混合办公, Télétravail partiel -> HYBRID
+ * - 现场办公：Sur site, Présentiel, On-site, Pas de télétravail, 现场办公, 坐班 -> ONSITE
+ * - 混合办公：Hybride, Hybrid, 混合办公, Télétravail ponctuel/partiel/régulier/occasionnel -> HYBRID
  * - 远程办公：Télétravail complet, Full remote, 100% remote, Remote, 远程办公, 远程 -> REMOTE
  */
 export function extractWorkMode(text?: string | null): WorkMode | null {
   if (!text || typeof text !== 'string') return null;
   const normalized = stripDiacritics(text).toLowerCase();
 
-  // 1. 混合办公 (优先匹配混合，避免与纯远程/纯现场冲突)
+  // 1. 现场办公 (需在 teletravail 前匹配，防止 "pas de teletravail" 被 teletravail 误捕获为 REMOTE)
   if (
-    /(?:\b(?:hybride|hybrid|teletravail\s+partiel)\b|混合办公)/i.test(normalized)
-  ) {
-    return 'HYBRID';
-  }
-
-  // 2. 现场办公
-  if (
-    /(?:\b(?:sur\s+site|sur\s+place|presentiel|on[- ]?site)\b|现场办公|坐班)/i.test(
+    /(?:\b(?:pas\s+de\s+teletravail|aucun\s+teletravail|sans\s+teletravail|sur\s+site|sur\s+place|presentiel|on[- ]?site)\b|现场办公|坐班)/i.test(
       normalized
     )
   ) {
     return 'ONSITE';
   }
 
+  // 2. 混合办公 (优先匹配混合，避免与纯远程/纯现场冲突；兼容 Apec 的 Télétravail ponctuel 等)
+  if (
+    /(?:\b(?:hybride|hybrid|teletravail\s+(?:partiel|ponctuel|regulier|occasionnel|possible|flexible)|(?:\d\s*jours?|\d\s*j)\s*(?:par\s*semaine\s*)?de\s*teletravail|teletravail\s*:\s*\d\s*j)\b|混合办公)/i.test(
+      normalized
+    )
+  ) {
+    return 'HYBRID';
+  }
+
   // 3. 远程办公
   if (
-    /(?:\b(?:teletravail\s+complet|full[- ]?remote|100%\s*remote|teletravail|remote)\b|远程办公|远程)/i.test(
+    /(?:\b(?:teletravail\s+(?:complet|total)|full[- ]?remote|100%\s*remote|teletravail|remote)\b|远程办公|远程)/i.test(
       normalized
     )
   ) {
@@ -222,6 +224,33 @@ export function extractWorkMode(text?: string | null): WorkMode | null {
 
   return null;
 }
+
+/**
+ * 地理位置排重与清洗：
+ * 消除连续重复词（如 "BORDEAUX, BORDEAUX, 33063, FR" -> "BORDEAUX, 33063, FR"）
+ */
+export function deduplicateLocationString(location?: string | null): string {
+  if (!location || typeof location !== 'string') return '';
+  const parts = location
+    .split(/,\s*/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  const seen = new Set<string>();
+  const uniqueParts: string[] = [];
+
+  for (const part of parts) {
+    const lower = part.toLowerCase();
+    if (!seen.has(lower)) {
+      seen.add(lower);
+      uniqueParts.push(part);
+    }
+  }
+
+  return uniqueParts.join(', ');
+}
+
+export const cleanLocation = deduplicateLocationString;
 
 /**
  * 薪资范围提取正则 (兼容 45k-55k, 45k€-55k€, 45 000 € - 55 000 €, 40-50 k€ 等)

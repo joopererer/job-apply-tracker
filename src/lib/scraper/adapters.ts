@@ -9,6 +9,7 @@ import {
 } from './types';
 import {
   cleanAndFormatJd,
+  deduplicateLocationString,
   detectLanguage,
   extractContractType,
   extractSalaryRange,
@@ -335,24 +336,24 @@ export function isLikelyLocation(str?: string | null): boolean {
 }
 
 /**
- * 从 JSON-LD 对象提取地理位置
+ * 从 JSON-LD 对象提取地理位置 (自带排重清洗，防止 Bordeaux, Bordeaux 等重复)
  */
 function formatJobLocation(jobLocation: any): string | null {
   if (!jobLocation) return null;
-  if (typeof jobLocation === 'string') return jobLocation.trim();
+  if (typeof jobLocation === 'string') return deduplicateLocationString(jobLocation.trim()) || null;
 
   if (Array.isArray(jobLocation)) {
     const locs = jobLocation
       .map((l) => formatJobLocation(l))
       .filter(Boolean);
-    return locs.length > 0 ? locs.join(', ') : null;
+    return locs.length > 0 ? deduplicateLocationString(locs.join(', ')) : null;
   }
 
   if (typeof jobLocation === 'object') {
     const address = jobLocation.address;
-    if (typeof address === 'string') return address.trim();
+    if (typeof address === 'string') return deduplicateLocationString(address.trim()) || null;
     if (address && typeof address === 'object') {
-      const parts = [
+      const rawParts = [
         address.streetAddress,
         address.addressLocality,
         address.addressRegion,
@@ -362,11 +363,21 @@ function formatJobLocation(jobLocation: any): string | null {
         .map((p) => (typeof p === 'string' ? p.trim() : ''))
         .filter(Boolean);
 
-      if (parts.length > 0) {
-        return parts.join(', ');
+      const seen = new Set<string>();
+      const uniqueParts: string[] = [];
+      for (const p of rawParts) {
+        const lower = p.toLowerCase();
+        if (!seen.has(lower)) {
+          seen.add(lower);
+          uniqueParts.push(p);
+        }
+      }
+
+      if (uniqueParts.length > 0) {
+        return uniqueParts.join(', ');
       }
     }
-    if (jobLocation.name) return jobLocation.name;
+    if (jobLocation.name) return deduplicateLocationString(jobLocation.name) || null;
   }
 
   return null;
@@ -394,12 +405,16 @@ function extractJobPostingFromJsonLd($: cheerio.CheerioAPI): RawJobData | null {
       const parsed = JSON.parse(content.trim());
       const jobPosting = findJobPostingNode(parsed);
       if (jobPosting) {
-        // 提取公司名称
+        // 提取公司名称 (兼容 name, legalName, alternateName)
         let company: string | undefined;
         if (typeof jobPosting.hiringOrganization === 'string') {
           company = jobPosting.hiringOrganization;
         } else if (jobPosting.hiringOrganization?.name) {
           company = jobPosting.hiringOrganization.name;
+        } else if (jobPosting.hiringOrganization?.legalName) {
+          company = jobPosting.hiringOrganization.legalName;
+        } else if (jobPosting.hiringOrganization?.alternateName) {
+          company = jobPosting.hiringOrganization.alternateName;
         }
 
         // 提取合同类型描述
@@ -733,6 +748,48 @@ export function parseFromHtmlOrText(input: ScrapeInput): ScrapedJob {
     rawData.location = fallbackData.location;
   }
 
+  // 3.1 Apec 特有 DOM 结构提取与兜底
+  if (platform === 'APEC' && $cheerioRoot) {
+    if (!rawData.company) {
+      const apecComp = $cheerioRoot(
+        '.rod-detail-keypoints-infos--company p, .rod-detail-keypoints-infos--company, .card-offer__company, .company-name'
+      ).first().text().trim();
+      if (apecComp && !/confidentielle/i.test(apecComp)) {
+        rawData.company = apecComp;
+      }
+    }
+    if (!rawData.title) {
+      const apecTitle = $cheerioRoot(
+        '#rod-detail-keypoints-title, apec-offre-infos-cles h1, .rod-detail-keypoints-infos h1'
+      ).first().text().trim();
+      if (apecTitle && !/recherche/i.test(apecTitle)) {
+        rawData.title = apecTitle;
+      }
+    }
+    if (!rawData.location) {
+      const apecLoc = $cheerioRoot(
+        '.rod-detail-keypoints-infos--adress p, .rod-detail-keypoints-infos--adress'
+      ).first().text().replace(/Localiser\s+l'adresse/gi, '').trim();
+      if (apecLoc) {
+        rawData.location = apecLoc;
+      }
+    }
+    // 检查标签栏中的工作方式与薪资
+    const apecTags = $cheerioRoot('.rod-detail-keypoints-tags span, .rod-tags, .rod-tooltip-container span');
+    apecTags.each((_, el) => {
+      const tagText = $cheerioRoot(el).text().trim();
+      if (!tagText) return;
+      if (!rawData.workMode) {
+        const mode = extractWorkMode(tagText);
+        if (mode) rawData.workMode = mode;
+      }
+      if (!rawData.salaryRange) {
+        const sal = extractSalaryRange(tagText);
+        if (sal) rawData.salaryRange = sal;
+      }
+    });
+  }
+
   // 防错守护：如果 company 误抓成了地理位置（如 "Paris (75)"）
   if (isLikelyLocation(rawData.company)) {
     if (!rawData.location) {
@@ -797,7 +854,7 @@ export function parseFromHtmlOrText(input: ScrapeInput): ScrapedJob {
     titleNorm,
     contractType,
     workMode: workMode || null,
-    location: rawData.location || null,
+    location: rawData.location ? deduplicateLocationString(rawData.location) : null,
     salaryRange: rawData.salaryRange || null,
     language,
     jdContent: cleanAndFormatJd(rawData.jdContent || ''),
