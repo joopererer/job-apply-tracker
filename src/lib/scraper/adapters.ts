@@ -283,29 +283,66 @@ function findJobPostingNode(node: any): any | null {
 }
 
 /**
- * 从 JSON-LD 对象格式化薪资
+ * 从 JSON-LD 对象格式化薪资 (兼容 baseSalary 与 estimatedSalary / MonetaryAmountDistribution)
  */
-function formatBaseSalary(baseSalary: any): string | null {
-  if (!baseSalary) return null;
-  if (typeof baseSalary === 'string') return baseSalary.trim();
-  if (typeof baseSalary === 'number') return `${baseSalary} €`;
+function formatBaseSalary(salaryNode: any): string | null {
+  if (!salaryNode) return null;
+  if (typeof salaryNode === 'string') return salaryNode.trim();
+  if (typeof salaryNode === 'number') {
+    return `${salaryNode.toLocaleString('fr-FR')} €`;
+  }
 
-  const currency = baseSalary.currency || '€';
-  const val = baseSalary.value;
+  const currency = salaryNode.currency === 'EUR' ? '€' : (salaryNode.currency || '€');
+
+  // 支持 Schema.org MonetaryAmountDistribution (HelloWork 的 estimatedSalary)
+  if (
+    salaryNode['@type'] === 'MonetaryAmountDistribution' ||
+    salaryNode.percentile25 !== undefined ||
+    salaryNode.median !== undefined
+  ) {
+    const p25 = salaryNode.percentile25;
+    const p75 = salaryNode.percentile75;
+    const median = salaryNode.median;
+    const unit =
+      salaryNode.duration === 'P1Y' || salaryNode.unitText === 'YEAR'
+        ? ' / an'
+        : salaryNode.duration === 'P1M' || salaryNode.unitText === 'MONTH'
+        ? ' / mois'
+        : '';
+
+    const fmt = (n: number) => n.toLocaleString('fr-FR');
+    if (p25 !== undefined && p75 !== undefined && p25 !== p75) {
+      return `${fmt(p25)} - ${fmt(p75)} ${currency}${unit}`.trim();
+    }
+    if (median !== undefined) {
+      return `${fmt(median)} ${currency}${unit}`.trim();
+    }
+  }
+
+  const val = salaryNode.value;
 
   if (val && typeof val === 'object') {
+    if (
+      val['@type'] === 'MonetaryAmountDistribution' ||
+      val.percentile25 !== undefined ||
+      val.median !== undefined
+    ) {
+      return formatBaseSalary(val);
+    }
     const min = val.minValue ?? val.value;
     const max = val.maxValue;
     const unit = val.unitText ? ` / ${val.unitText}` : '';
 
+    const fmt = (v: any) => (typeof v === 'number' ? v.toLocaleString('fr-FR') : v);
     if (min !== undefined && max !== undefined && min !== max) {
-      return `${min} - ${max} ${currency}${unit}`.trim();
+      return `${fmt(min)} - ${fmt(max)} ${currency}${unit}`.trim();
     }
     if (min !== undefined) {
-      return `${min} ${currency}${unit}`.trim();
+      return `${fmt(min)} ${currency}${unit}`.trim();
     }
   } else if (typeof val === 'number' || typeof val === 'string') {
-    return `${val} ${currency}`.trim();
+    const fmt = (v: any) => (typeof v === 'number' ? v.toLocaleString('fr-FR') : v);
+    return `${fmt(val)} ${currency}`.trim();
   }
 
   return null;
@@ -317,17 +354,41 @@ function formatBaseSalary(baseSalary: any): string | null {
 export function isLikelyLocation(str?: string | null): boolean {
   if (!str) return false;
   const s = str.trim();
-  // 匹配法国邮政编码或部门编号，如 "Paris (75)", "(75001)", "75008", "69002 Lyon"
+
+  // 如果包含明显的公司属性词汇（如 Radio, Groupe, Technologies, Air, Digital, Studio, etc.），绝不是纯地理位置
+  if (
+    /\b(radio|groupe?|technolog(?:y|ies)|digital|air|banque|bank|consulting|solutions|services|conseil|studio|agency|agence|m[eé]dia|engineering|labs?|sas|sarl|sa|inc|ltd|gmbh|co)\b/i.test(
+      s
+    )
+  ) {
+    return false;
+  }
+
+  // 匹配法国邮政编码或部门编号，如 "Paris (75)", "(75001)", "75008", "69002 Lyon", "Bordeaux - 33"
   if (/\(\s*\d{2,5}\s*\)/.test(s)) return true;
   if (/^\d{5}\b/.test(s) || /\b\d{5}$/.test(s)) return true;
-  // 常见法国城市与关键词
+  if (/^([a-zA-Z\u00C0-\u017F\s'-]+)\s*-\s*\d{2,3}$/.test(s)) return true;
+
+  // 常见法国国家与区域关键词
+  // 注意：法国国家名称仅在独立出现或由逗号/连接符分隔时算作地点（例如 "France", ", France", "Paris, France"），
+  // 严禁将 "Radio France", "Air France" 等误判为地点！
   if (
-    /\b(paris|lyon|marseille|toulouse|bordeaux|nantes|lille|strasbourg|rennes|montpellier|nice|grenoble|annecy|rouen|toulon|angers|dijon|brest|le mans|reims|france|teletravail|remote|ile-de-france|auvergne|rhone-alpes|paca)\b/i.test(
+    /^(?:,\s*)?(?:en\s+)?france$/i.test(s) ||
+    /,\s*france$/i.test(s) ||
+    /\b(?:teletravail|remote|ile-de-france|auvergne|rhone-alpes|paca)\b/i.test(s)
+  ) {
+    return true;
+  }
+
+  // 常见法国主要城市
+  if (
+    /\b(paris|lyon|marseille|toulouse|bordeaux|nantes|lille|strasbourg|rennes|montpellier|nice|grenoble|annecy|rouen|toulon|angers|dijon|brest|le mans|reims)\b/i.test(
       s
     )
   ) {
     return true;
   }
+
   // 中文地理词汇 (如 "法国 奥弗涅-隆-阿尔卑斯 阿纳西", "巴黎", "里昂")
   if (/(?:法国|巴黎|里昂|马赛|图卢兹|波尔多|南特|里尔|斯特拉斯堡|雷恩|蒙彼利埃|尼斯|格勒诺布尔|阿纳西|远程)/.test(s)) {
     return true;
@@ -428,8 +489,8 @@ function extractJobPostingFromJsonLd($: cheerio.CheerioAPI): RawJobData | null {
         // 提取地点
         const location = formatJobLocation(jobPosting.jobLocation);
 
-        // 提取薪资
-        const salaryRange = formatBaseSalary(jobPosting.baseSalary);
+        // 提取薪资 (兼容 baseSalary 与 estimatedSalary)
+        const salaryRange = formatBaseSalary(jobPosting.baseSalary || jobPosting.estimatedSalary);
 
         // 提取发布日期
         const postedAt = parsePostedDate(jobPosting.datePosted);
@@ -786,6 +847,49 @@ export function parseFromHtmlOrText(input: ScrapeInput): ScrapedJob {
     // 检查标签栏中的工作方式与薪资
     const apecTags = $cheerioRoot('.rod-detail-keypoints-tags span, .rod-tags, .rod-tooltip-container span');
     apecTags.each((_, el) => {
+      const tagText = $cheerioRoot(el).text().trim();
+      if (!tagText) return;
+      if (!rawData.workMode) {
+        const mode = extractWorkMode(tagText);
+        if (mode) rawData.workMode = mode;
+      }
+      if (!rawData.salaryRange) {
+        const sal = extractSalaryRange(tagText);
+        if (sal) rawData.salaryRange = sal;
+      }
+    });
+  }
+
+  // 3.2 HelloWork 特有 DOM 结构提取与兜底
+  if (platform === 'HELLOWORK' && $cheerioRoot) {
+    if (!rawData.title) {
+      const hwTitle = $cheerioRoot('[data-cy="jobTitle"], main h1, h1').first().text().trim();
+      if (hwTitle) rawData.title = hwTitle;
+    }
+    if (!rawData.company) {
+      const hwComp = $cheerioRoot(
+        'a[href*="/entreprises/"], [data-cy="companyCollapseButton"] h2, h1 a'
+      ).first().text().trim();
+      if (hwComp) {
+        const cleanComp = hwComp.replace(/^Bienvenue chez\s+/i, '').trim();
+        if (cleanComp) rawData.company = cleanComp;
+      }
+    }
+    if (!rawData.location) {
+      const firstLi = $cheerioRoot('main h1').parent().find('ul li').first().text().trim();
+      if (firstLi && !/cdi|cdd|stage|alternance/i.test(firstLi)) {
+        rawData.location = deduplicateLocationString(firstLi);
+      }
+    }
+    if (!rawData.salaryRange) {
+      const hwSalaryTag = $cheerioRoot('[data-cy="salary-tag-button"]').first().text().trim();
+      if (hwSalaryTag) {
+        const sal = extractSalaryRange(hwSalaryTag);
+        if (sal) rawData.salaryRange = sal;
+      }
+    }
+    // 检查标签栏中的工作方式与薪资
+    $cheerioRoot('[data-cy="salary-tag-button"], .tag-secondary-s, [class*="tag"]').each((_, el) => {
       const tagText = $cheerioRoot(el).text().trim();
       if (!tagText) return;
       if (!rawData.workMode) {

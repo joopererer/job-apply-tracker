@@ -114,9 +114,9 @@ async function extractPageJobData() {
     if (!text || typeof text !== 'string') return 'UNKNOWN';
     const norm = stripDiacritics(text).toLowerCase();
 
-    // 1. CDI / 全职 / Permanent / Temps plein
+    // 1. CDI / 全职 / Permanent / Temps plein (兼容 schema.org FULL_TIME)
     if (
-      /(?:\b(?:cdi|permanent|indefinite|full[- ]?time|temps\s+plein)\b|全职|无固定期限)/i.test(
+      /(?:\b(?:cdi|permanent|indefinite|full[-_ ]?time|temps\s+plein)\b|全职|无固定期限)/i.test(
         norm
       ) ||
       /duree\s+indeterminee/i.test(norm)
@@ -126,7 +126,7 @@ async function extractPageJobData() {
 
     // 2. CDD / 短期 / 合同工 / Fixed-term / Temporary / Intérim
     if (
-      /(?:\b(?:cdd|fixed[- ]?term|temporary|interim)\b|短期|合同工|固定期限)/i.test(
+      /(?:\b(?:cdd|fixed[-_ ]?term|temporary|interim)\b|短期|合同工|固定期限)/i.test(
         norm
       ) ||
       /duree\s+determinee/i.test(norm)
@@ -136,7 +136,7 @@ async function extractPageJobData() {
 
     // 3. FREELANCE / 自由职业 / Indépendant / TJM / Auto-entrepreneur
     if (
-      /(?:\b(?:freelance|independant|tjm|auto[- ]?entrepreneur)\b|自由职业)/i.test(
+      /(?:\b(?:freelance|independant|tjm|auto[-_ ]?entrepreneur|contractor)\b|自由职业)/i.test(
         norm
       )
     ) {
@@ -149,7 +149,7 @@ async function extractPageJobData() {
     }
 
     // 5. STAGE / Internship / Stagiaire / 实习
-    if (/(?:\b(?:stage|internship|stagiaire)\b|实习)/i.test(norm)) {
+    if (/(?:\b(?:stage|internship|intern|stagiaire)\b|实习)/i.test(norm)) {
       return 'STAGE';
     }
 
@@ -1169,10 +1169,113 @@ async function extractPageJobData() {
   }
 
   if (isHelloWork) {
+    domExtracted.platform = 'HELLOWORK';
+
+    // 1. 外部职位 ID 与 cleanUrl
+    const hwIdMatch = url.match(/\/emplois\/(\d+)\.html/i);
+    if (hwIdMatch) {
+      domExtracted.externalJobId = hwIdMatch[1];
+      try {
+        const parsed = new URL(url);
+        domExtracted.cleanUrl = `${parsed.origin}/fr-fr/emplois/${hwIdMatch[1]}.html`;
+      } catch {
+        domExtracted.cleanUrl = `https://www.hellowork.com/fr-fr/emplois/${hwIdMatch[1]}.html`;
+      }
+    }
+
+    // 2. 职位标题 (titleRaw)
+    const titleEl = document.querySelector('[data-cy="jobTitle"], main h1, h1');
+    if (titleEl && titleEl.innerText) {
+      const cleanTitle = titleEl.innerText.trim();
+      if (cleanTitle) {
+        domExtracted.titleRaw = cleanTitle;
+      }
+    }
+
+    // 3. 公司名称 (companyRaw)
+    const compEl = document.querySelector(
+      'a[href*="/entreprises/"], [data-cy="companyCollapseButton"] h2, [data-cy="companyCollapseButton"], main h1 a, h1 a'
+    );
+    if (compEl && compEl.innerText) {
+      const cleanComp = compEl.innerText.replace(/^Bienvenue chez\s+/i, '').trim();
+      if (cleanComp) {
+        domExtracted.companyRaw = cleanComp;
+      }
+    }
+
+    // 4. 工作地点 (location) 与合同类型 (contractType)
+    // HelloWork 在 h1 下方通常有 <ul><li>Paris - 75</li><li>CDI</li></ul>
+    const headerLis = Array.from(
+      document.querySelectorAll('main h1 ~ ul li, main h1 + ul li, header ul.flex li, ul.flex li')
+    );
+    if (headerLis.length > 0) {
+      for (const li of headerLis) {
+        const liText = (li.innerText || '').trim();
+        if (!liText) continue;
+
+        // 判断是否是合同类型
+        const cType = extractContractType(liText);
+        if (cType && cType !== 'UNKNOWN' && (!domExtracted.contractType || domExtracted.contractType === 'UNKNOWN')) {
+          domExtracted.contractType = cType;
+          continue;
+        }
+
+        // 判断是否是地点 (排除薪资和教育背景)
+        if (!domExtracted.location && !/€|an|mois|bac/i.test(liText)) {
+          domExtracted.location = dedupeLocationString(liText);
+        }
+      }
+    }
+
+    // 5. 薪资提取 (salaryRange)
+    const salaryEl = document.querySelector('[data-cy="salary-tag-button"]');
+    if (salaryEl && salaryEl.innerText) {
+      const sal = extractSalaryRange(salaryEl.innerText);
+      if (sal) {
+        domExtracted.salaryRange = sal;
+      }
+    }
+
+    // 6. 关键标签提炼：办公方式 (workMode) 与其他标签
+    const tagElements = Array.from(
+      document.querySelectorAll('[data-cy="salary-tag-button"], .tag-secondary-s, [class*="tag-"]')
+    );
+    for (const tagEl of tagElements) {
+      const tagText = (tagEl.innerText || '').trim();
+      if (!tagText) continue;
+
+      if (!domExtracted.workMode || domExtracted.workMode === 'UNKNOWN') {
+        const mode = extractWorkMode(tagText);
+        if (mode) domExtracted.workMode = mode;
+      }
+
+      if (!domExtracted.salaryRange) {
+        const sal = extractSalaryRange(tagText);
+        if (sal) domExtracted.salaryRange = sal;
+      }
+    }
+
+    // 7. 发布时间 (postedAt)
     const hwDateEl = document.querySelector('[data-testid="job-meta-date"], .offer-header-date');
     if (hwDateEl && hwDateEl.innerText) {
       const parsed = parsePostedDate(hwDateEl.innerText.trim());
       domExtracted.postedAt = parsed || hwDateEl.innerText.trim();
+    } else {
+      // 从正文寻找 "Publiée le 26/10/2026"
+      const allText = document.body ? document.body.innerText : '';
+      const dateMatch = allText.match(/Publi[eé]e\s+le\s+(\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4})/i);
+      if (dateMatch && dateMatch[1]) {
+        const parsed = parsePostedDate(dateMatch[1]);
+        if (parsed) domExtracted.postedAt = parsed;
+      }
+    }
+
+    // 8. 详情正文
+    const jdContainer = document.querySelector(
+      '[data-cy="jobDescription"], .job-description, .content-description, main article, main'
+    );
+    if (jdContainer && jdContainer.innerText) {
+      domExtracted.jdContent = jdContainer.innerText.trim();
     }
   }
 

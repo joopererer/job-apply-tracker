@@ -140,9 +140,9 @@ export function extractContractType(text: string): ContractType {
 
   const normalized = stripDiacritics(text).toLowerCase();
 
-  // 1. CDI: CDI, Permanent, Full-time, Temps plein, 全职, 无固定期限等
+  // 1. CDI: CDI, Permanent, Full-time, Temps plein, 全职, 无固定期限等 (兼容 schema.org FULL_TIME)
   if (
-    /(?:\b(?:cdi|permanent|indefinite|full[- ]?time|temps\s+plein)\b|全职|无固定期限)/i.test(
+    /(?:\b(?:cdi|permanent|indefinite|full[-_ ]?time|temps\s+plein)\b|全职|无固定期限)/i.test(
       normalized
     ) ||
     /duree\s+indeterminee/i.test(normalized)
@@ -152,7 +152,7 @@ export function extractContractType(text: string): ContractType {
 
   // 2. CDD: CDD, Fixed-term, Temporary, Intérim, 短期, 合同工等
   if (
-    /(?:\b(?:cdd|fixed[- ]?term|temporary|interim)\b|短期|合同工|固定期限)/i.test(
+    /(?:\b(?:cdd|fixed[-_ ]?term|temporary|interim)\b|短期|合同工|固定期限)/i.test(
       normalized
     ) ||
     /duree\s+determinee/i.test(normalized)
@@ -162,7 +162,7 @@ export function extractContractType(text: string): ContractType {
 
   // 3. FREELANCE: Freelance, Indépendant, TJM, Auto-entrepreneur, 自由职业等
   if (
-    /(?:\b(?:freelance|independant|tjm|auto[- ]?entrepreneur)\b|自由职业)/i.test(
+    /(?:\b(?:freelance|independant|tjm|auto[-_ ]?entrepreneur|contractor)\b|自由职业)/i.test(
       normalized
     )
   ) {
@@ -177,7 +177,7 @@ export function extractContractType(text: string): ContractType {
   }
 
   // 5. STAGE: Stage, Internship, Stagiaire, 实习
-  if (/(?:\b(?:stage|internship|stagiaire)\b|实习)/i.test(normalized)) {
+  if (/(?:\b(?:stage|internship|intern|stagiaire)\b|实习)/i.test(normalized)) {
     return 'STAGE';
   }
 
