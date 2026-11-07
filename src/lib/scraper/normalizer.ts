@@ -227,11 +227,16 @@ export function extractWorkMode(text?: string | null): WorkMode | null {
 
 /**
  * 地理位置排重与清洗：
- * 消除连续重复词（如 "BORDEAUX, BORDEAUX, 33063, FR" -> "BORDEAUX, 33063, FR"）
+ * 消除杂质词（如 "Localiser l'adresse"）与连续重复词（如 "BORDEAUX, BORDEAUX, 33063, FR" -> "BORDEAUX, 33063, FR"）
  */
 export function deduplicateLocationString(location?: string | null): string {
   if (!location || typeof location !== 'string') return '';
-  const parts = location
+  let cleaned = location
+    .replace(/\s*Localiser\s+l['’\u2019]adresse/gi, '')
+    .replace(/\s*Localiser.*$/gi, '')
+    .trim();
+
+  const parts = cleaned
     .split(/,\s*/)
     .map((p) => p.trim())
     .filter(Boolean);

@@ -192,7 +192,12 @@ async function extractPageJobData() {
 
   function dedupeLocationString(loc) {
     if (!loc || typeof loc !== 'string') return '';
-    const parts = loc
+    let cleaned = loc
+      .replace(/\s*Localiser\s+l['’\u2019]adresse/gi, '')
+      .replace(/\s*Localiser.*$/gi, '')
+      .trim();
+
+    const parts = cleaned
       .split(/,\s*/)
       .map((p) => p.trim())
       .filter(Boolean);
@@ -1093,14 +1098,27 @@ async function extractPageJobData() {
     }
 
     // 4. 工作地点 (location)
-    const locationEl = document.querySelector(
-      '.rod-detail-keypoints-infos--adress p, .rod-detail-keypoints-infos--adress, .card-offer-location'
-    );
-    if (locationEl && locationEl.innerText) {
-      let locText = locationEl.innerText.replace(/Localiser\s+l'adresse/gi, '').trim();
-      if (locText) {
-        domExtracted.location = dedupeLocationString(locText);
+    let apecLoc = '';
+    const addressContainer = document.querySelector('.rod-detail-keypoints-infos--adress');
+    if (addressContainer) {
+      // 优先直接提取纯城市/省份的 <p> 标签，避开紧随其后的 <a>Localiser l’adresse</a> 按钮
+      const pEl = addressContainer.querySelector('p');
+      if (pEl && pEl.innerText) {
+        apecLoc = pEl.innerText.trim();
+      } else {
+        const clone = addressContainer.cloneNode(true);
+        clone.querySelectorAll('a, button').forEach((el) => el.remove());
+        apecLoc = clone.innerText.trim();
       }
+    } else {
+      const fallbackLocEl = document.querySelector('.card-offer-location, [itemprop="jobLocation"]');
+      if (fallbackLocEl && fallbackLocEl.innerText) {
+        apecLoc = fallbackLocEl.innerText.trim();
+      }
+    }
+
+    if (apecLoc) {
+      domExtracted.location = dedupeLocationString(apecLoc);
     }
 
     // 5. 发布/更新时间 (postedAt)

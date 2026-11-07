@@ -767,11 +767,20 @@ export function parseFromHtmlOrText(input: ScrapeInput): ScrapedJob {
       }
     }
     if (!rawData.location) {
-      const apecLoc = $cheerioRoot(
-        '.rod-detail-keypoints-infos--adress p, .rod-detail-keypoints-infos--adress'
-      ).first().text().replace(/Localiser\s+l'adresse/gi, '').trim();
+      const addressContainer = $cheerioRoot('.rod-detail-keypoints-infos--adress');
+      let apecLoc = '';
+      if (addressContainer.length > 0) {
+        const pEl = addressContainer.find('p');
+        if (pEl.length > 0) {
+          apecLoc = pEl.first().text().trim();
+        } else {
+          const clone = addressContainer.clone();
+          clone.find('a, button').remove();
+          apecLoc = clone.text().trim();
+        }
+      }
       if (apecLoc) {
-        rawData.location = apecLoc;
+        rawData.location = deduplicateLocationString(apecLoc);
       }
     }
     // 检查标签栏中的工作方式与薪资
