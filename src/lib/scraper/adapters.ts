@@ -876,8 +876,15 @@ export function parseFromHtmlOrText(input: ScrapeInput): ScrapedJob {
       }
     }
     if (!rawData.location) {
-      const firstLi = $cheerioRoot('main h1').parent().find('ul li').first().text().trim();
-      if (firstLi && !/cdi|cdd|stage|alternance/i.test(firstLi)) {
+      const isJunkLoc = (t: string) =>
+        /r[eé]sum[eé]|analyse|cv|coach|entretien|alerte|connexion|cdi|cdd|stage|alternance/i.test(t);
+
+      const h1Ul = $cheerioRoot('main h1, h1#main-content, h1').first().parent().find('ul').first();
+      let firstLi = h1Ul.find('li').first().text().trim();
+      if (!firstLi || isJunkLoc(firstLi)) {
+        firstLi = $cheerioRoot('[data-cy="localisationCard"]').first().text().trim();
+      }
+      if (firstLi && !isJunkLoc(firstLi)) {
         rawData.location = deduplicateLocationString(firstLi);
       }
     }

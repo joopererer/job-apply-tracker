@@ -183,6 +183,17 @@ export async function POST(request: NextRequest) {
         domExtracted.jdContent || parsedJob.jdContent || ''
       );
 
+      const isJunkLocation = (loc?: string | null) =>
+        !loc ||
+        /r[eé]sum[eé]|analyse\s+de\s+cv|coach|entretien|alerte|connexion|recherche/i.test(
+          loc
+        );
+
+      const resolvedLocation =
+        domExtracted.location !== undefined && !isJunkLocation(domExtracted.location)
+          ? (cleanLocation(domExtracted.location) || null)
+          : (cleanLocation(parsedJob.location) || null);
+
       parsedJob = {
         ...parsedJob,
         ...domExtracted,
@@ -204,10 +215,7 @@ export async function POST(request: NextRequest) {
           domExtracted.workMode !== undefined
             ? domExtracted.workMode
             : (parsedJob.workMode || extractWorkMode(`${mergedJdContent} ${mergedTitleRaw}`)),
-        location:
-          domExtracted.location !== undefined
-            ? (cleanLocation(domExtracted.location) || null)
-            : (cleanLocation(parsedJob.location) || null),
+        location: resolvedLocation,
         salaryRange:
           domExtracted.salaryRange !== undefined
             ? domExtracted.salaryRange

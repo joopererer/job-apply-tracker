@@ -1204,18 +1204,44 @@ async function extractPageJobData() {
     }
 
     // 4. 工作地点 (location) 与合同类型 (contractType)
-    // HelloWork 在 h1 下方通常有 <ul><li>Paris - 75</li><li>CDI</li></ul>
-    const headerLis = Array.from(
-      document.querySelectorAll('main h1 ~ ul li, main h1 + ul li, header ul.flex li, ul.flex li')
-    );
+    // HelloWork 在 h1 旁边或父级紧随其后的 <ul> 中存放地点与合同类型：
+    // 结构例如：<div><h1 id="main-content">...</h1><ul class="mt-3 flex"><li>Paris - 75</li><li>CDI</li></ul></div>
+    let headerLis = [];
+    const h1El =
+      document.querySelector('main h1, h1#main-content, [data-cy="jobTitle"]')?.closest('h1') ||
+      document.querySelector('h1');
+    if (h1El) {
+      const parentEl = h1El.parentElement;
+      const targetUl =
+        h1El.nextElementSibling && h1El.nextElementSibling.tagName === 'UL'
+          ? h1El.nextElementSibling
+          : parentEl
+          ? parentEl.querySelector('ul')
+          : null;
+      if (targetUl) {
+        headerLis = Array.from(targetUl.querySelectorAll('li'));
+      }
+    }
+
+    if (headerLis.length === 0) {
+      headerLis = Array.from(document.querySelectorAll('main h1 ~ ul li, main h1 + ul li'));
+    }
+
+    const isJunkText = (t) =>
+      /r[eé]sum[eé]|analyse\s+de\s+cv|coach|entretien|alerte|connexion|recherche/i.test(t);
+
     if (headerLis.length > 0) {
       for (const li of headerLis) {
         const liText = (li.innerText || '').trim();
-        if (!liText) continue;
+        if (!liText || isJunkText(liText)) continue;
 
         // 判断是否是合同类型
         const cType = extractContractType(liText);
-        if (cType && cType !== 'UNKNOWN' && (!domExtracted.contractType || domExtracted.contractType === 'UNKNOWN')) {
+        if (
+          cType &&
+          cType !== 'UNKNOWN' &&
+          (!domExtracted.contractType || domExtracted.contractType === 'UNKNOWN')
+        ) {
           domExtracted.contractType = cType;
           continue;
         }
@@ -1223,6 +1249,28 @@ async function extractPageJobData() {
         // 判断是否是地点 (排除薪资和教育背景)
         if (!domExtracted.location && !/€|an|mois|bac/i.test(liText)) {
           domExtracted.location = dedupeLocationString(liText);
+        }
+      }
+    }
+
+    // 后备：如果上面的 ul 未抓取到地点，尝试从 [data-cy="localisationCard"] 提取
+    if (!domExtracted.location) {
+      const locCard = document.querySelector('[data-cy="localisationCard"]');
+      if (locCard && locCard.innerText) {
+        const txt = locCard.innerText.trim();
+        if (txt && !isJunkText(txt)) {
+          domExtracted.location = dedupeLocationString(txt);
+        }
+      }
+    }
+
+    // 后备：如果上面的 ul 未抓取到合同类型，尝试从 [data-cy="contractCard"] 提取
+    if (!domExtracted.contractType || domExtracted.contractType === 'UNKNOWN') {
+      const contractCard = document.querySelector('[data-cy="contractCard"]');
+      if (contractCard && contractCard.innerText) {
+        const cType = extractContractType(contractCard.innerText);
+        if (cType && cType !== 'UNKNOWN') {
+          domExtracted.contractType = cType;
         }
       }
     }
