@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { ApplicationRecord } from '@/lib/supabase';
 import { FormattedJdRenderer } from '@/components/JdViewerModal';
+import { useI18n } from '@/lib/i18n/I18nProvider';
 
 interface JobDetailModalProps {
   isOpen: boolean;
@@ -35,26 +36,26 @@ interface JobDetailModalProps {
   onDelete: (id: string) => void;
 }
 
-const STATUS_LABELS: Record<string, { label: string; color: string; badge: string; icon: string }> = {
-  SAVED: { label: '未投递', color: 'bg-slate-800 text-slate-300 border-slate-700', badge: 'bg-slate-700', icon: '📌' },
-  APPLIED: { label: '已投递', color: 'bg-emerald-950/90 text-emerald-300 border-emerald-700/70', badge: 'bg-emerald-600', icon: '🚀' },
-  HR_CALL: { label: 'HR 沟通', color: 'bg-purple-950/90 text-purple-300 border-purple-700/70', badge: 'bg-purple-600', icon: '📞' },
-  TECH_INTERVIEW: { label: '技术面试', color: 'bg-amber-950/90 text-amber-200 border-amber-600/70', badge: 'bg-amber-500', icon: '💻' },
-  OFFER: { label: '已获 Offer', color: 'bg-emerald-700 text-emerald-100 border-emerald-400 font-extrabold shadow-sm', badge: 'bg-emerald-500', icon: '🎉' },
-  REJECTED: { label: '未通过', color: 'bg-zinc-800/90 text-zinc-400 border-zinc-700', badge: 'bg-zinc-700', icon: '❌' },
+const STATUS_STYLES: Record<string, { color: string; badge: string; icon: string }> = {
+  SAVED: { color: 'bg-slate-800 text-slate-300 border-slate-700', badge: 'bg-slate-700', icon: '📌' },
+  APPLIED: { color: 'bg-emerald-950/90 text-emerald-300 border-emerald-700/70', badge: 'bg-emerald-600', icon: '🚀' },
+  HR_CALL: { color: 'bg-purple-950/90 text-purple-300 border-purple-700/70', badge: 'bg-purple-600', icon: '📞' },
+  TECH_INTERVIEW: { color: 'bg-amber-950/90 text-amber-200 border-amber-600/70', badge: 'bg-amber-500', icon: '💻' },
+  OFFER: { color: 'bg-emerald-700 text-emerald-100 border-emerald-400 font-extrabold shadow-sm', badge: 'bg-emerald-500', icon: '🎉' },
+  REJECTED: { color: 'bg-zinc-800/90 text-zinc-400 border-zinc-700', badge: 'bg-zinc-700', icon: '❌' },
 };
 
 const ALL_STATUSES = ['SAVED', 'APPLIED', 'HR_CALL', 'TECH_INTERVIEW', 'OFFER', 'REJECTED'] as const;
 
-function formatDaysAgo(isoDate?: string | null): string {
-  if (!isoDate) return '近期';
+function formatDaysAgo(isoDate?: string | null, t?: (k: string, p?: any) => string): string {
+  if (!isoDate) return t ? t('card.recent') : '近期';
   const diffMs = Date.now() - new Date(isoDate).getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  if (diffDays <= 0) return '今天';
-  if (diffDays === 1) return '昨天';
-  if (diffDays < 7) return `${diffDays} 天前`;
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)} 周前`;
-  return `${Math.floor(diffDays / 30)} 个月前`;
+  if (diffDays <= 0) return t ? t('card.today') : '今天';
+  if (diffDays === 1) return t ? t('card.yesterday') : '昨天';
+  if (diffDays < 7) return t ? t('card.daysAgo', { n: diffDays }) : `${diffDays} 天前`;
+  if (diffDays < 30) return t ? t('card.weeksAgo', { n: Math.floor(diffDays / 7) }) : `${Math.floor(diffDays / 7)} 周前`;
+  return t ? t('card.monthsAgo', { n: Math.floor(diffDays / 30) }) : `${Math.floor(diffDays / 30)} 个月前`;
 }
 
 export default function JobDetailModal({
@@ -67,6 +68,7 @@ export default function JobDetailModal({
   onUpdateStatus,
   onDelete,
 }: JobDetailModalProps) {
+  const { t } = useI18n();
   const [copied, setCopied] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
 
@@ -77,7 +79,8 @@ export default function JobDetailModal({
   if (!isOpen || !job) return null;
 
   const isStarred = Boolean(job.is_starred ?? job.isStarred);
-  const statusMeta = STATUS_LABELS[job.status] || STATUS_LABELS.APPLIED;
+  const statusStyle = STATUS_STYLES[job.status] || STATUS_STYLES.APPLIED;
+  const statusLabel = t(`status.${job.status}`);
 
   let hrText = '';
   if (job.hr_contact) {
@@ -116,12 +119,12 @@ export default function JobDetailModal({
                   ? 'text-amber-400 bg-amber-500/15 hover:bg-amber-500/25'
                   : 'text-slate-500 hover:text-amber-400 hover:bg-slate-800'
               }`}
-              title={isStarred ? '取消特别关注' : '设为特别关注 ⭐'}
+              title={isStarred ? t('card.unstar') : t('card.star')}
             >
               <Star className={`w-5 h-5 ${isStarred ? 'fill-amber-400 text-amber-400' : ''}`} />
             </button>
             <div>
-              <span className="text-xs text-slate-400 font-semibold">岗位详情速览</span>
+              <span className="text-xs text-slate-400 font-semibold">{t('jobDetail.title')}</span>
               <h2 className="text-base sm:text-lg font-black text-slate-100 leading-tight">
                 {job.company_raw}
               </h2>
@@ -136,7 +139,7 @@ export default function JobDetailModal({
                 onEdit(job);
               }}
               className="p-1.5 rounded-xl text-slate-400 hover:text-blue-400 hover:bg-slate-800 transition"
-              title="编辑此职位"
+              title={t('card.edit')}
             >
               <Pencil className="w-4 h-4" />
             </button>
@@ -158,23 +161,28 @@ export default function JobDetailModal({
               <h3 className="text-lg font-bold text-slate-100">{job.title_raw}</h3>
               <p className="text-xs text-slate-400 flex items-center gap-2 mt-1">
                 <Clock className="w-3.5 h-3.5" />
-                <span>投递于 {job.applied_at?.slice(0, 10)} ({formatDaysAgo(job.applied_at)})</span>
+                <span>
+                  {t('jobDetail.appliedOn', {
+                    date: job.applied_at?.slice(0, 10),
+                    daysAgo: formatDaysAgo(job.applied_at, t),
+                  })}
+                </span>
               </p>
             </div>
 
             <div className="text-right shrink-0">
-              <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold border ${statusMeta.color}`}>
-                {statusMeta.icon} {statusMeta.label}
+              <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold border ${statusStyle.color}`}>
+                {statusStyle.icon} {statusLabel}
               </span>
             </div>
           </div>
 
           {/* 快速修改状态 */}
           <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 space-y-2">
-            <span className="text-xs font-bold text-slate-400">切换当前流转状态:</span>
+            <span className="text-xs font-bold text-slate-400">{t('jobDetail.switchStatus')}</span>
             <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
               {ALL_STATUSES.map((st) => {
-                const meta = STATUS_LABELS[st];
+                const style = STATUS_STYLES[st];
                 const active = job.status === st;
                 return (
                   <button
@@ -187,8 +195,8 @@ export default function JobDetailModal({
                         : 'bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
                     }`}
                   >
-                    <span>{meta.icon}</span>
-                    <span>{meta.label}</span>
+                    <span>{style.icon}</span>
+                    <span>{t(`status.${st}`)}</span>
                   </button>
                 );
               })}
@@ -198,25 +206,31 @@ export default function JobDetailModal({
           {/* 元信息标签 */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
             <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
-              <span className="text-slate-400 block text-[11px] mb-0.5">合同类型</span>
+              <span className="text-slate-400 block text-[11px] mb-0.5">{t('jobDetail.contractType')}</span>
               <strong className="text-slate-200">{job.contract_type || 'UNKNOWN'}</strong>
             </div>
 
             <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
-              <span className="text-slate-400 block text-[11px] mb-0.5">办公模式</span>
+              <span className="text-slate-400 block text-[11px] mb-0.5">{t('jobDetail.workMode')}</span>
               <strong className="text-slate-200">
-                {job.work_mode === 'ONSITE' ? '🏢 现场办公' : job.work_mode === 'HYBRID' ? '🔄 混合办公' : job.work_mode === 'REMOTE' ? '🏠 远程' : '未注明'}
+                {job.work_mode === 'ONSITE'
+                  ? `🏢 ${t('workMode.ONSITE')}`
+                  : job.work_mode === 'HYBRID'
+                  ? `🔄 ${t('workMode.HYBRID')}`
+                  : job.work_mode === 'REMOTE'
+                  ? `🏠 ${t('workMode.REMOTE')}`
+                  : t('jobDetail.notSpecified')}
               </strong>
             </div>
 
             <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
-              <span className="text-slate-400 block text-[11px] mb-0.5">地点</span>
-              <strong className="text-slate-200">{job.location || '未注明'}</strong>
+              <span className="text-slate-400 block text-[11px] mb-0.5">{t('jobDetail.location')}</span>
+              <strong className="text-slate-200">{job.location || t('jobDetail.notSpecified')}</strong>
             </div>
 
             <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
-              <span className="text-slate-400 block text-[11px] mb-0.5">薪资</span>
-              <strong className="text-emerald-400">{job.salary_range || '未注明'}</strong>
+              <span className="text-slate-400 block text-[11px] mb-0.5">{t('jobDetail.salary')}</span>
+              <strong className="text-emerald-400">{job.salary_range || t('jobDetail.notSpecified')}</strong>
             </div>
           </div>
 
@@ -225,20 +239,20 @@ export default function JobDetailModal({
             {hrText && (
               <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 flex items-center gap-2">
                 <Phone className="w-4 h-4 shrink-0 text-amber-400" />
-                <span>HR 联系方式: <strong>{hrText}</strong></span>
+                <span>{t('jobDetail.hrContact')} <strong>{hrText}</strong></span>
               </div>
             )}
 
             {job.clean_url && (
               <div className="flex items-center justify-between text-xs p-2.5 rounded-xl bg-slate-950 border border-slate-800">
-                <span className="text-slate-400">招聘来源页面:</span>
+                <span className="text-slate-400">{t('jobDetail.sourcePage')}</span>
                 <a
                   href={job.clean_url}
                   target="_blank"
                   rel="noreferrer"
                   className="text-blue-400 hover:underline inline-flex items-center gap-1 font-semibold"
                 >
-                  打开原始职位链接 <ExternalLink className="w-3.5 h-3.5" />
+                  {t('jobDetail.openOriginal')} <ExternalLink className="w-3.5 h-3.5" />
                 </a>
               </div>
             )}
@@ -247,7 +261,7 @@ export default function JobDetailModal({
           {/* 笔记 */}
           {job.notes && (
             <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 text-xs space-y-1">
-              <span className="text-slate-400 font-bold block">投递备忘笔记:</span>
+              <span className="text-slate-400 font-bold block">{t('jobDetail.notes')}</span>
               <p className="text-slate-200 whitespace-pre-wrap">{job.notes}</p>
             </div>
           )}
@@ -258,7 +272,7 @@ export default function JobDetailModal({
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-300 flex items-center gap-1">
                   <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-                  职位 JD 详情
+                  {t('jobDetail.jdDetail')}
                 </span>
                 <div className="flex items-center gap-2">
                   <button
@@ -269,12 +283,12 @@ export default function JobDetailModal({
                     {copied ? (
                       <>
                         <Check className="w-3 h-3 text-emerald-400" />
-                        <span className="text-emerald-400">已复制!</span>
+                        <span className="text-emerald-400">{t('jobDetail.copied')}</span>
                       </>
                     ) : (
                       <>
                         <Copy className="w-3 h-3 text-slate-400" />
-                        <span>复制</span>
+                        <span>{t('jobDetail.copy')}</span>
                       </>
                     )}
                   </button>
@@ -287,7 +301,7 @@ export default function JobDetailModal({
                     className="px-2 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 text-xs font-semibold border border-blue-500/30 flex items-center gap-1 transition"
                   >
                     <Maximize2 className="w-3 h-3" />
-                    <span>全屏阅读</span>
+                    <span>{t('jobDetail.fullscreenRead')}</span>
                   </button>
                 </div>
               </div>
@@ -304,7 +318,7 @@ export default function JobDetailModal({
           <div>
             {confirmDelete ? (
               <div className="inline-flex items-center gap-1.5 bg-rose-950/80 border border-rose-800 px-2 py-1 rounded-xl text-xs">
-                <span className="text-rose-300 font-bold">确定删除?</span>
+                <span className="text-rose-300 font-bold">{t('jobDetail.confirmDelete')}</span>
                 <button
                   type="button"
                   onClick={() => {
@@ -313,14 +327,14 @@ export default function JobDetailModal({
                   }}
                   className="px-2 py-0.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg font-bold transition"
                 >
-                  确认
+                  {t('common.confirm')}
                 </button>
                 <button
                   type="button"
                   onClick={() => setConfirmDelete(false)}
                   className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg font-bold transition"
                 >
-                  取消
+                  {t('common.cancel')}
                 </button>
               </div>
             ) : (
@@ -330,7 +344,7 @@ export default function JobDetailModal({
                 className="py-1.5 px-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition flex items-center gap-1"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>删除记录</span>
+                <span>{t('jobDetail.deleteRecord')}</span>
               </button>
             )}
           </div>
@@ -345,14 +359,14 @@ export default function JobDetailModal({
               className="py-1.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition flex items-center gap-1.5"
             >
               <Pencil className="w-3.5 h-3.5" />
-              <span>编辑全部字段</span>
+              <span>{t('jobDetail.editAll')}</span>
             </button>
             <button
               type="button"
               onClick={onClose}
               className="py-1.5 px-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition"
             >
-              关闭
+              {t('common.close')}
             </button>
           </div>
         </div>

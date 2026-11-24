@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Building2,
   Calendar,
@@ -26,24 +27,28 @@ import {
   Sparkles,
   Star,
   Trash2,
+  User as UserIcon,
   X,
 } from 'lucide-react';
-import { ApplicationRecord } from '@/lib/supabase';
+import { ApplicationRecord, supabase } from '@/lib/supabase';
+import { User } from '@supabase/supabase-js';
 import JdViewerModal, { FormattedJdRenderer } from '@/components/JdViewerModal';
 import ApplicationEditModal from '@/components/ApplicationEditModal';
 import QuickAddModal from '@/components/QuickAddModal';
 import JobDetailModal from '@/components/JobDetailModal';
+import AccountSettingsModal from '@/components/AccountSettingsModal';
+import { useI18n, LanguageSwitcher } from '@/lib/i18n/I18nProvider';
 
 // 格式化投递相对时间
-function formatDaysAgo(isoDate: string): string {
-  if (!isoDate) return '近期';
+function formatDaysAgo(isoDate: string, t?: (k: string, p?: any) => string): string {
+  if (!isoDate) return t ? t('card.recent') : '近期';
   const diffMs = Date.now() - new Date(isoDate).getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  if (diffDays <= 0) return '今天';
-  if (diffDays === 1) return '昨天';
-  if (diffDays < 7) return `${diffDays} 天前`;
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)} 周前`;
-  return `${Math.floor(diffDays / 30)} 个月前`;
+  if (diffDays <= 0) return t ? t('card.today') : '今天';
+  if (diffDays === 1) return t ? t('card.yesterday') : '昨天';
+  if (diffDays < 7) return t ? t('card.daysAgo', { n: diffDays }) : `${diffDays} 天前`;
+  if (diffDays < 30) return t ? t('card.weeksAgo', { n: Math.floor(diffDays / 7) }) : `${Math.floor(diffDays / 7)} 周前`;
+  return t ? t('card.monthsAgo', { n: Math.floor(diffDays / 30) }) : `${Math.floor(diffDays / 30)} 个月前`;
 }
 
 // 格式化发布时间 (精确到年月日，去除 ISO 时间后缀如 T00:00:00+00:00)
@@ -74,23 +79,23 @@ type TabStatus =
   | 'REJECTED';
 
 // 状态视觉配置
-const STATUS_LABELS: Record<TabStatus, { label: string; color: string; badge: string; icon: string }> = {
-  ALL: { label: '全部岗位', color: 'bg-slate-800 text-slate-300', badge: 'bg-slate-800', icon: '📋' },
-  SAVED: { label: '未投递', color: 'bg-slate-800 text-slate-300 border-slate-700', badge: 'bg-slate-700', icon: '📌' },
-  APPLIED: { label: '已投递', color: 'bg-emerald-950/90 text-emerald-300 border-emerald-700/70', badge: 'bg-emerald-600', icon: '🚀' },
-  HR_CALL: { label: 'HR 沟通', color: 'bg-purple-950/90 text-purple-300 border-purple-700/70', badge: 'bg-purple-600', icon: '📞' },
-  TECH_INTERVIEW: { label: '技术面试', color: 'bg-amber-950/90 text-amber-200 border-amber-600/70', badge: 'bg-amber-500', icon: '💻' },
-  OFFER: { label: '已获 Offer', color: 'bg-emerald-700 text-emerald-100 border-emerald-400 font-extrabold shadow-sm', badge: 'bg-emerald-500', icon: '🎉' },
-  REJECTED: { label: '未通过', color: 'bg-zinc-800/90 text-zinc-400 border-zinc-700', badge: 'bg-zinc-700', icon: '❌' },
+const STATUS_STYLES: Record<TabStatus, { color: string; badge: string; icon: string }> = {
+  ALL: { color: 'bg-slate-800 text-slate-300', badge: 'bg-slate-800', icon: '📋' },
+  SAVED: { color: 'bg-slate-800 text-slate-300 border-slate-700', badge: 'bg-slate-700', icon: '📌' },
+  APPLIED: { color: 'bg-emerald-950/90 text-emerald-300 border-emerald-700/70', badge: 'bg-emerald-600', icon: '🚀' },
+  HR_CALL: { color: 'bg-purple-950/90 text-purple-300 border-purple-700/70', badge: 'bg-purple-600', icon: '📞' },
+  TECH_INTERVIEW: { color: 'bg-amber-950/90 text-amber-200 border-amber-600/70', badge: 'bg-amber-500', icon: '💻' },
+  OFFER: { color: 'bg-emerald-700 text-emerald-100 border-emerald-400 font-extrabold shadow-sm', badge: 'bg-emerald-500', icon: '🎉' },
+  REJECTED: { color: 'bg-zinc-800/90 text-zinc-400 border-zinc-700', badge: 'bg-zinc-700', icon: '❌' },
 };
 
-const STATUS_SELECT_OPTIONS: { key: TabStatus; label: string; icon: string }[] = [
-  { key: 'SAVED', label: '未投递', icon: '📌' },
-  { key: 'APPLIED', label: '已投递', icon: '🚀' },
-  { key: 'HR_CALL', label: 'HR 沟通', icon: '📞' },
-  { key: 'TECH_INTERVIEW', label: '技术面试', icon: '💻' },
-  { key: 'OFFER', label: '已获 Offer', icon: '🎉' },
-  { key: 'REJECTED', label: '未通过', icon: '❌' },
+const STATUS_SELECT_KEYS: TabStatus[] = [
+  'SAVED',
+  'APPLIED',
+  'HR_CALL',
+  'TECH_INTERVIEW',
+  'OFFER',
+  'REJECTED',
 ];
 
 // 卡片背景与边框色彩计算
@@ -184,6 +189,12 @@ function getRatingBadge(rating?: string | null) {
 }
 
 export default function HomePage() {
+  const router = useRouter();
+  const { t } = useI18n();
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
+
   // 数据与列表状态
   const [applications, setApplications] = useState<ApplicationRecord[]>([]);
   const [loadingList, setLoadingList] = useState(true);
@@ -228,6 +239,53 @@ export default function HomePage() {
   // 搜索框快捷键 Ref
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  // 状态多语言与元数据解析
+  const getStatusMeta = useCallback(
+    (status: TabStatus) => {
+      const style = STATUS_STYLES[status] || STATUS_STYLES.APPLIED;
+      return {
+        ...style,
+        label: t(`status.${status}`),
+      };
+    },
+    [t]
+  );
+
+  const statusSelectOptions = useMemo(() => {
+    return STATUS_SELECT_KEYS.map((key) => ({
+      key,
+      label: t(`status.${key}`),
+      icon: STATUS_STYLES[key].icon,
+    }));
+  }, [t]);
+
+  // 监听并校验用户登录态
+  useEffect(() => {
+    async function checkAuth() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.push('/login');
+        return;
+      }
+      setCurrentUser(session.user);
+      setCheckingAuth(false);
+    }
+    checkAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        router.push('/login');
+      } else {
+        setCurrentUser(session.user);
+        setCheckingAuth(false);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [router]);
+
   // 全局点击自动收起状态下拉菜单
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -240,14 +298,26 @@ export default function HomePage() {
     return () => window.removeEventListener('click', handleClickOutside);
   }, []);
 
-  // 1. 加载所有投递记录
+  // 1. 加载所有投递记录 (附带当前用户 Token)
   const fetchApplications = useCallback(async (query = '') => {
     try {
       setLoadingList(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        return;
+      }
       const url = query
         ? `/api/applications?q=${encodeURIComponent(query)}`
         : '/api/applications';
-      const res = await fetch(url);
+      const res = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      if (res.status === 401) {
+        router.push('/login');
+        return;
+      }
       const data = await res.json();
       if (res.ok) {
         setApplications(data.applications || []);
@@ -257,19 +327,22 @@ export default function HomePage() {
     } finally {
       setLoadingList(false);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
-    fetchApplications();
-  }, [fetchApplications]);
+    if (!checkingAuth) {
+      fetchApplications();
+    }
+  }, [checkingAuth, fetchApplications]);
 
   // 2. 搜索框防抖处理 (优化为 180ms，兼顾灵敏度与请求频率)
   useEffect(() => {
+    if (checkingAuth) return;
     const timer = setTimeout(() => {
       fetchApplications(searchQuery);
     }, 180);
     return () => clearTimeout(timer);
-  }, [searchQuery, fetchApplications]);
+  }, [searchQuery, checkingAuth, fetchApplications]);
 
   // 3. 键盘快捷键 Cmd+K / Ctrl+K 聚焦反查搜索框
   useEffect(() => {
@@ -296,9 +369,13 @@ export default function HomePage() {
     );
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch(`/api/applications/${app.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
         body: JSON.stringify({ is_starred: newStarred }),
       });
       if (!res.ok) throw new Error();
@@ -325,9 +402,13 @@ export default function HomePage() {
     }
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch(`/api/applications/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
         body: JSON.stringify({ status: newStatus }),
       });
       if (!res.ok) throw new Error();
@@ -374,8 +455,12 @@ export default function HomePage() {
     setIsDeleting(true);
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch(`/api/applications/${id}`, {
         method: 'DELETE',
+        headers: {
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -499,6 +584,15 @@ export default function HomePage() {
     });
   };
 
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-slate-400">
+        <Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-3" />
+        <p className="text-sm">{t('login.verifyingAuth')}</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-blue-600 selection:text-white">
       {/* 顶部 Brand Header 与统计指标 */}
@@ -512,24 +606,24 @@ export default function HomePage() {
             <div>
               <div className="flex items-center gap-1.5">
                 <h1 className="font-extrabold text-base sm:text-lg tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
-                  FR Job Tracker
+                  {t('header.title')}
                 </h1>
                 <span className="text-sm">🇫🇷</span>
               </div>
               <p className="text-[11px] text-slate-400 hidden md:block">
-                法国求职雷达 · 极速录入 · 状态流转 · 来电急救反查
+                {t('header.subtitle')}
               </p>
             </div>
           </div>
 
-          {/* 顶部统计指标栏：总数、回复率、通过率 + 「+ 录入岗位」按钮 */}
+          {/* 顶部统计指标栏：总数、回复率、通过率 + 语言切换 + 「+ 录入岗位」按钮 */}
           <div className="flex items-center gap-2 sm:gap-2.5 text-xs flex-wrap justify-end">
             {/* 总岗位 */}
             <div
               className="px-2 py-1 rounded-lg bg-slate-800/80 border border-slate-700/80 flex items-center gap-1.5"
-              title={`全部投递库记录: ${stats.total} 条 (有效投递: ${stats.effectiveApplied}，未投递: ${stats.saved})`}
+              title={t('stats.totalTooltip', { total: stats.total, effective: stats.effectiveApplied, saved: stats.saved })}
             >
-              <span className="text-slate-400">总计:</span>
+              <span className="text-slate-400">{t('stats.total')}:</span>
               <strong className="text-blue-400 font-bold">{stats.total}</strong>
             </div>
 
@@ -537,9 +631,9 @@ export default function HomePage() {
             {stats.saved > 0 && (
               <div
                 className="px-2 py-1 rounded-lg bg-amber-950/60 border border-amber-800/60 items-center gap-1.5 hidden sm:flex"
-                title="已保存但尚未正式投递的待办岗位"
+                title={t('stats.savedTooltip')}
               >
-                <span className="text-amber-400 font-bold">📌 未投:</span>
+                <span className="text-amber-400 font-bold">📌 {t('stats.saved')}:</span>
                 <strong className="text-amber-300 font-bold">{stats.saved}</strong>
               </div>
             )}
@@ -547,26 +641,29 @@ export default function HomePage() {
             {/* 回复率核心指标 */}
             <div
               className="px-2.5 py-1 rounded-lg bg-emerald-950/60 border border-emerald-800/60 flex items-center gap-1.5 cursor-help"
-              title={`回复率口径：收到有效反馈数 ÷ 有效投递数 (${stats.replied}/${stats.effectiveApplied})\n排除未投递(SAVED)与待回复(APPLIED)，包含 HR沟通、技术面试、已获Offer与未通过等所有获得明确回复的投递`}
+              title={t('stats.replyRateTooltip', { replied: stats.replied, effective: stats.effectiveApplied })}
             >
               <Flame className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-emerald-300">回复率:</span>
+              <span className="text-emerald-300">{t('stats.replyRate')}:</span>
               <strong className="text-emerald-400 font-bold">
                 {stats.effectiveApplied > 0 ? `${stats.replyRate}%` : '—'}
               </strong>
             </div>
 
-            {/* 通过率核心指标 (新增) */}
+            {/* 通过率核心指标 */}
             <div
               className="px-2.5 py-1 rounded-lg bg-indigo-950/60 border border-indigo-800/60 flex items-center gap-1.5 cursor-help"
-              title={`通过率口径：推进/通过数 ÷ 有效投递数 (${stats.passed}/${stats.effectiveApplied})\n排除未投递(SAVED)、待回复(APPLIED)与未通过(REJECTED)，计算已成功推进到 HR沟通、技术面试或已获Offer的比例`}
+              title={t('stats.passRateTooltip', { passed: stats.passed, effective: stats.effectiveApplied })}
             >
               <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" />
-              <span className="text-indigo-300">通过率:</span>
+              <span className="text-indigo-300">{t('stats.passRate')}:</span>
               <strong className="text-indigo-400 font-bold">
                 {stats.effectiveApplied > 0 ? `${stats.passRate}%` : '—'}
               </strong>
             </div>
+
+            {/* 语言切换器 */}
+            <LanguageSwitcher />
 
             {/* 极速录入按钮 (弹窗触发) */}
             <button
@@ -575,7 +672,20 @@ export default function HomePage() {
               className="py-1.5 px-3 sm:px-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center gap-1.5 transition shadow-lg shadow-blue-500/25 shrink-0 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>录入岗位</span>
+              <span>{t('header.addJob')}</span>
+            </button>
+
+            {/* 用户账号设置按钮 */}
+            <button
+              type="button"
+              onClick={() => setIsAccountModalOpen(true)}
+              className="py-1.5 px-2.5 sm:px-3 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700/80 active:scale-95 text-slate-200 font-semibold text-xs sm:text-sm flex items-center gap-1.5 transition shrink-0 cursor-pointer"
+              title={t('account.title')}
+            >
+              <UserIcon className="w-3.5 h-3.5 text-blue-400" />
+              <span className="max-w-[70px] sm:max-w-[120px] truncate">
+                {currentUser?.email ? currentUser.email.split('@')[0] : t('header.userAccount')}
+              </span>
             </button>
           </div>
         </div>
@@ -596,7 +706,7 @@ export default function HomePage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="☎️ HR 来电闪电反查：输入电话、公司名、职位、HR姓名、JD关键词..."
+              placeholder={t('search.placeholder')}
               className="w-full pl-10 sm:pl-11 pr-20 py-2.5 sm:py-3 bg-slate-900/90 border border-amber-500/40 focus:border-amber-400 focus:ring-2 focus:ring-amber-500/20 rounded-2xl text-xs sm:text-sm text-slate-100 placeholder-slate-400 shadow-xl transition"
             />
             <div className="absolute inset-y-0 right-3 flex items-center gap-1.5">
@@ -617,12 +727,12 @@ export default function HomePage() {
           </div>
           {searchQuery && (
             <div className="text-xs text-amber-300/80 px-2 flex items-center justify-between">
-              <span>匹配到 {filteredApplications.length} 条相关投递记录</span>
+              <span>{t('search.matchedCount', { count: filteredApplications.length })}</span>
               <button
                 onClick={() => setSearchQuery('')}
                 className="underline hover:text-white"
               >
-                清除反查关键词
+                {t('search.clear')}
               </button>
             </div>
           )}
@@ -637,7 +747,7 @@ export default function HomePage() {
             <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
               <span className="text-slate-400 font-bold flex items-center gap-1">
                 <Filter className="w-3.5 h-3.5 text-blue-400" />
-                筛选:
+                {t('filter.title')}:
               </span>
 
               {/* 平台筛选 */}
@@ -646,7 +756,7 @@ export default function HomePage() {
                 onChange={(e) => setFilterPlatform(e.target.value)}
                 className="px-2 py-1 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 font-semibold focus:outline-none focus:border-blue-500 cursor-pointer"
               >
-                <option value="ALL">全部平台 ({platformStats.counts.ALL || 0})</option>
+                <option value="ALL">{t('filter.allPlatforms', { count: platformStats.counts.ALL || 0 })}</option>
                 {platformStats.platforms.map((p) => (
                   <option key={p} value={p}>
                     {PLATFORM_NAMES[p] || p} ({platformStats.counts[p] || 0})
@@ -659,7 +769,7 @@ export default function HomePage() {
                       {PLATFORM_NAMES[filterPlatform] || filterPlatform} (0)
                     </option>
                   )}
-                <option value="OTHER">其它渠道 ({platformStats.counts.OTHER || 0})</option>
+                <option value="OTHER">{t('filter.otherPlatforms', { count: platformStats.counts.OTHER || 0 })}</option>
               </select>
 
               {/* 最低评级筛选 */}
@@ -668,13 +778,13 @@ export default function HomePage() {
                 onChange={(e) => setFilterMinRating(e.target.value)}
                 className="px-2 py-1 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 font-semibold focus:outline-none focus:border-blue-500 cursor-pointer"
               >
-                <option value="ALL">评级不限</option>
-                <option value="S+">≥ S+ 顶级</option>
-                <option value="S">≥ S 极佳</option>
-                <option value="A+">≥ A+ 优质</option>
-                <option value="A">≥ A 较好</option>
-                <option value="A-">≥ A- 良好</option>
-                <option value="B">≥ B 及格</option>
+                <option value="ALL">{t('filter.allRatings')}</option>
+                <option value="S+">{t('filter.ratingSPlus')}</option>
+                <option value="S">{t('filter.ratingS')}</option>
+                <option value="A+">{t('filter.ratingAPlus')}</option>
+                <option value="A">{t('filter.ratingA')}</option>
+                <option value="A-">{t('filter.ratingAMinus')}</option>
+                <option value="B">{t('filter.ratingB')}</option>
               </select>
 
               {/* 合同类型筛选 */}
@@ -683,7 +793,7 @@ export default function HomePage() {
                 onChange={(e) => setFilterContract(e.target.value)}
                 className="px-2 py-1 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 font-semibold focus:outline-none focus:border-blue-500 cursor-pointer"
               >
-                <option value="ALL">全部合同</option>
+                <option value="ALL">{t('filter.allContracts')}</option>
                 <option value="CDI">CDI</option>
                 <option value="CDD">CDD</option>
                 <option value="FREELANCE">Freelance</option>
@@ -702,7 +812,7 @@ export default function HomePage() {
                 }`}
               >
                 <Star className={`w-3.5 h-3.5 ${filterStarredOnly ? 'text-amber-400 fill-amber-400' : 'text-slate-500'}`} />
-                <span>仅看特别关注</span>
+                <span>{t('filter.starredOnly')}</span>
               </button>
 
               {/* 重置筛选 */}
@@ -718,7 +828,7 @@ export default function HomePage() {
                   className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition font-medium flex items-center gap-1"
                 >
                   <X className="w-3.5 h-3.5" />
-                  <span>重置</span>
+                  <span>{t('filter.reset')}</span>
                 </button>
               )}
             </div>
@@ -733,10 +843,10 @@ export default function HomePage() {
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
-                title="详细列表模式 (单列、带完整预览折叠)"
+                title={t('filter.listView')}
               >
                 <LayoutList className="w-3.5 h-3.5" />
-                <span>列表</span>
+                <span>{t('filter.list')}</span>
               </button>
               <button
                 type="button"
@@ -746,10 +856,10 @@ export default function HomePage() {
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
-                title="紧凑网格模式 (手机2列/桌面3~4列，高密度展示)"
+                title={t('filter.gridView')}
               >
                 <LayoutGrid className="w-3.5 h-3.5" />
-                <span>网格</span>
+                <span>{t('filter.grid')}</span>
               </button>
             </div>
           </div>
@@ -767,7 +877,7 @@ export default function HomePage() {
                 'REJECTED',
               ] as TabStatus[]
             ).map((tab) => {
-              const meta = STATUS_LABELS[tab];
+              const meta = getStatusMeta(tab);
               const count =
                 tab === 'ALL'
                   ? applications.length
@@ -803,14 +913,14 @@ export default function HomePage() {
           {loadingList ? (
             <div className="py-16 text-center text-slate-500 flex flex-col items-center gap-2">
               <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-              <span className="text-xs">正在加载投递库...</span>
+              <span className="text-xs">{t('card.loading')}</span>
             </div>
           ) : filteredApplications.length === 0 ? (
             <div className="py-16 text-center text-slate-500 space-y-2 rounded-2xl bg-slate-900/40 border border-slate-800">
               <Building2 className="w-8 h-8 mx-auto text-slate-600" />
-              <p className="text-sm font-medium">暂无匹配的职位投递记录</p>
+              <p className="text-sm font-medium">{t('card.emptyTitle')}</p>
               <p className="text-xs text-slate-600">
-                点击右上角「+ 录入岗位」快速添加
+                {t('card.emptyDesc')}
               </p>
             </div>
           ) : viewMode === 'list' ? (
@@ -821,8 +931,7 @@ export default function HomePage() {
               {filteredApplications.map((app) => {
                 const isExpanded = expandedJdIds.has(app.id);
                 const currentStatus = (app.status || 'APPLIED') as TabStatus;
-                const statusMeta =
-                  STATUS_LABELS[currentStatus] || STATUS_LABELS.APPLIED;
+                const statusMeta = getStatusMeta(currentStatus);
 
                 // HR 联系方式解析
                 let hrText = '';
@@ -856,7 +965,7 @@ export default function HomePage() {
                     )}
                     {stampType === 'FAILED' && (
                       <div className="absolute right-36 top-3 pointer-events-none select-none opacity-85 transform -rotate-12 border-2 border-dashed border-zinc-400 text-zinc-100 bg-zinc-950/85 font-black tracking-widest text-[11px] sm:text-xs px-2.5 py-0.5 rounded uppercase shadow-lg shadow-black/40">
-                        ✕ FAILED · 未通过
+                        ✕ FAILED · {t('status.REJECTED')}
                       </div>
                     )}
 
@@ -897,7 +1006,7 @@ export default function HomePage() {
                           </span>
                           {app.work_mode && (
                             <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30 leading-none inline-flex items-center shrink-0">
-                              {app.work_mode === 'ONSITE' ? '🏢 现场' : app.work_mode === 'HYBRID' ? '🔄 混合' : '🏠 远程'}
+                              {app.work_mode === 'ONSITE' ? `🏢 ${t('workMode.ONSITE')}` : app.work_mode === 'HYBRID' ? `🔄 ${t('workMode.HYBRID')}` : `🏠 ${t('workMode.REMOTE')}`}
                             </span>
                           )}
                           {app.platform && app.platform !== 'OTHER' && (
@@ -923,9 +1032,9 @@ export default function HomePage() {
                           {overTwoMonths && (
                             <span
                               className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-500/20 text-rose-300 border border-rose-500/50"
-                              title="已投递超过2个月无反馈"
+                              title={t('card.overTwoMonthsTooltip')}
                             >
-                              ⚠️ &gt;2个月
+                              {t('card.overTwoMonths')}
                             </span>
                           )}
 
@@ -938,7 +1047,7 @@ export default function HomePage() {
                                 setOpenStatusMenuId(isMenuOpen ? null : app.id);
                               }}
                               className={`px-2 py-0.5 rounded-full text-xs font-bold border transition flex items-center gap-1 cursor-pointer ${statusMeta.color}`}
-                              title="点击更改投递状态"
+                              title={t('card.statusTooltip')}
                             >
                               <span>{statusMeta.icon}</span>
                               <span>{statusMeta.label}</span>
@@ -949,9 +1058,9 @@ export default function HomePage() {
                             {isMenuOpen && (
                               <div className="absolute right-0 top-full mt-1.5 w-36 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
                                 <div className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800">
-                                  流转状态选择
+                                  {t('card.statusMenuTitle')}
                                 </div>
-                                {STATUS_SELECT_OPTIONS.map((opt) => {
+                                {statusSelectOptions.map((opt) => {
                                   const selected = app.status === opt.key;
                                   return (
                                     <button
@@ -988,7 +1097,7 @@ export default function HomePage() {
                                 ? 'text-amber-400 bg-amber-500/15 hover:bg-amber-500/25'
                                 : 'text-slate-500 hover:text-amber-400 hover:bg-slate-800'
                             }`}
-                            title={isStarred ? '取消特别关注' : '设为特别关注 ⭐'}
+                            title={isStarred ? t('card.unstar') : t('card.star')}
                           >
                             <Star className={`w-3.5 h-3.5 ${isStarred ? 'fill-amber-400 text-amber-400' : ''}`} />
                           </button>
@@ -998,7 +1107,7 @@ export default function HomePage() {
                             type="button"
                             onClick={() => handleOpenEdit(app)}
                             className="p-1 rounded-lg text-slate-400 hover:text-blue-400 hover:bg-slate-800 transition"
-                            title="编辑此职位信息"
+                            title={t('card.edit')}
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
@@ -1006,21 +1115,21 @@ export default function HomePage() {
                           {/* 删除按钮与确认 */}
                           {deletingId === app.id ? (
                             <div className="inline-flex items-center gap-1 bg-rose-950/80 border border-rose-800 px-1.5 py-0.5 rounded-lg text-[10px] animate-in fade-in">
-                              <span className="text-rose-300 font-bold">删?</span>
+                              <span className="text-rose-300 font-bold">{t('card.deleteConfirm')}</span>
                               <button
                                 type="button"
                                 disabled={isDeleting}
                                 onClick={() => handleDeleteApplication(app.id)}
                                 className="px-1.5 py-0.5 bg-rose-600 hover:bg-rose-500 text-white rounded font-bold transition"
                               >
-                                是
+                                {t('common.yes')}
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setDeletingId(null)}
                                 className="px-1.5 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded font-bold transition"
                               >
-                                否
+                                {t('common.no')}
                               </button>
                             </div>
                           ) : (
@@ -1028,7 +1137,7 @@ export default function HomePage() {
                               type="button"
                               onClick={() => setDeletingId(app.id)}
                               className="p-1 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition"
-                              title="删除此投递记录"
+                              title={t('card.delete')}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -1038,7 +1147,7 @@ export default function HomePage() {
                         {/* 第二行右侧：投递相对时间 (昨天/2天前 等) */}
                         <div className="flex items-center gap-1 text-[11px] text-slate-400 justify-end pt-0.5">
                           <Clock className="w-3 h-3 text-slate-500" />
-                          <span>{formatDaysAgo(app.applied_at)}</span>
+                          <span>{formatDaysAgo(app.applied_at, t)}</span>
                         </div>
                       </div>
                     </div>
@@ -1062,7 +1171,7 @@ export default function HomePage() {
                         <div className="flex items-center gap-1 text-slate-400">
                           <Calendar className="w-3 h-3 text-slate-500" />
                           <span>
-                            发布: {formatPostedDate(app.posted_at || app.postedAt)}
+                            {t('card.posted')}: {formatPostedDate(app.posted_at || app.postedAt)}
                           </span>
                         </div>
                       )}
@@ -1081,7 +1190,7 @@ export default function HomePage() {
                           rel="noreferrer"
                           className="ml-auto inline-flex items-center gap-1 text-blue-400 hover:underline"
                         >
-                          原链接 <ExternalLink className="w-3 h-3" />
+                          {t('card.originalLink')} <ExternalLink className="w-3 h-3" />
                         </a>
                       )}
                     </div>
@@ -1089,7 +1198,7 @@ export default function HomePage() {
                     {/* 备注笔记 */}
                     {app.notes && (
                       <div className="p-2 rounded-xl bg-slate-950/70 border border-slate-800 text-xs text-slate-300">
-                        <strong className="text-slate-400 font-medium">笔记: </strong>
+                        <strong className="text-slate-400 font-medium">{t('card.notes')}: </strong>
                         {app.notes}
                       </div>
                     )}
@@ -1105,12 +1214,12 @@ export default function HomePage() {
                           >
                             {isExpanded ? (
                               <>
-                                <span>收起岗位 JD 正文</span>
+                                <span>{t('card.collapseJd')}</span>
                                 <ChevronUp className="w-3 h-3" />
                               </>
                             ) : (
                               <>
-                                <span>展开完整 JD 正文</span>
+                                <span>{t('card.expandJd')}</span>
                                 <ChevronDown className="w-3 h-3" />
                               </>
                             )}
@@ -1122,7 +1231,7 @@ export default function HomePage() {
                             className="text-xs text-blue-400 hover:text-blue-300 inline-flex items-center gap-1 transition font-semibold"
                           >
                             <Maximize2 className="w-3 h-3" />
-                            <span>⛶ 全屏阅读 JD</span>
+                            <span>{t('card.fullscreenJd')}</span>
                           </button>
                         </div>
 
@@ -1131,7 +1240,7 @@ export default function HomePage() {
                             <div className="flex items-center justify-between border-b border-slate-800/80 pb-1.5 mb-1.5">
                               <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1">
                                 <Sparkles className="w-3 h-3 text-blue-400" />
-                                JD 智能排版预览
+                                {t('card.jdSmartPreview')}
                               </span>
                               <div className="flex items-center gap-2">
                                 <button
@@ -1142,12 +1251,12 @@ export default function HomePage() {
                                   {copiedJdId === app.id ? (
                                     <>
                                       <Check className="w-3 h-3 text-emerald-400" />
-                                      <span className="text-emerald-400">已复制!</span>
+                                      <span className="text-emerald-400">{t('card.copied')}</span>
                                     </>
                                   ) : (
                                     <>
                                       <Copy className="w-3 h-3 text-slate-400" />
-                                      <span>复制全文</span>
+                                      <span>{t('card.copyAll')}</span>
                                     </>
                                   )}
                                 </button>
@@ -1157,7 +1266,7 @@ export default function HomePage() {
                                   className="px-2 py-0.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-[11px] font-bold text-blue-300 border border-blue-500/30 transition flex items-center gap-1"
                                 >
                                   <Maximize2 className="w-3 h-3" />
-                                  <span>全屏沉浸阅读</span>
+                                  <span>{t('card.fullscreenRead')}</span>
                                 </button>
                               </div>
                             </div>
@@ -1180,8 +1289,7 @@ export default function HomePage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3">
               {filteredApplications.map((app) => {
                 const currentStatus = (app.status || 'APPLIED') as TabStatus;
-                const statusMeta =
-                  STATUS_LABELS[currentStatus] || STATUS_LABELS.APPLIED;
+                const statusMeta = getStatusMeta(currentStatus);
                 const isStarred = Boolean(app.is_starred ?? app.isStarred);
                 const { bgStyle, borderStyle, stampType } = getCardStyle(
                   currentStatus,
@@ -1220,7 +1328,7 @@ export default function HomePage() {
                                 ? 'text-amber-400 bg-amber-500/15 hover:bg-amber-500/25'
                                 : 'text-slate-500 hover:text-amber-400 hover:bg-slate-800'
                             }`}
-                            title={isStarred ? '取消特别关注' : '设为特别关注 ⭐'}
+                            title={isStarred ? t('card.unstar') : t('card.star')}
                           >
                             <Star className={`w-3.5 h-3.5 ${isStarred ? 'fill-amber-400 text-amber-400' : ''}`} />
                           </button>
@@ -1236,7 +1344,7 @@ export default function HomePage() {
                               setOpenStatusMenuId(isMenuOpen ? null : app.id);
                             }}
                             className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold border transition flex items-center gap-0.5 cursor-pointer ${statusMeta.color}`}
-                            title="点击更改状态"
+                            title={t('card.statusTooltip')}
                           >
                             <span>{statusMeta.icon}</span>
                             <span className="hidden sm:inline">{statusMeta.label}</span>
@@ -1245,7 +1353,7 @@ export default function HomePage() {
 
                           {isMenuOpen && (
                             <div className="absolute right-0 top-full mt-1 w-32 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
-                              {STATUS_SELECT_OPTIONS.map((opt) => (
+                              {statusSelectOptions.map((opt) => (
                                 <button
                                   key={opt.key}
                                   type="button"
@@ -1287,7 +1395,7 @@ export default function HomePage() {
                         </span>
                         {app.work_mode && (
                           <span className="px-1 py-0.2 rounded bg-purple-950/60 text-purple-300 font-semibold border border-purple-800/40">
-                            {app.work_mode === 'ONSITE' ? '现场' : app.work_mode === 'HYBRID' ? '混合' : '远程'}
+                            {app.work_mode === 'ONSITE' ? t('workMode.ONSITE') : app.work_mode === 'HYBRID' ? t('workMode.HYBRID') : t('workMode.REMOTE')}
                           </span>
                         )}
                         {app.location && (
@@ -1300,10 +1408,10 @@ export default function HomePage() {
                       <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5">
                         <span className="flex items-center gap-0.5">
                           <Clock className="w-2.5 h-2.5 text-slate-500" />
-                          <span>{formatDaysAgo(app.applied_at)}</span>
+                          <span>{formatDaysAgo(app.applied_at, t)}</span>
                         </span>
                         <span className="text-blue-400 group-hover:underline text-[10px] font-semibold">
-                          详情 →
+                          {t('card.details')}
                         </span>
                       </div>
                     </div>
@@ -1347,6 +1455,14 @@ export default function HomePage() {
         onClose={() => setIsEditOpen(false)}
         job={editingJob}
         onSaved={handleJobSaved}
+      />
+
+      {/* 账号与安全设置弹窗 */}
+      <AccountSettingsModal
+        isOpen={isAccountModalOpen}
+        onClose={() => setIsAccountModalOpen(false)}
+        userEmail={currentUser?.email || null}
+        onDataCleared={() => fetchApplications()}
       />
     </div>
   );

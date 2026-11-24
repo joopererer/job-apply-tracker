@@ -1,4 +1,273 @@
 let API_BASE = 'http://localhost:3000';
+let currentLang = 'zh';
+
+// 国际化多语言字典 (FR / EN / ZH)
+const I18N_EXTENSION = {
+  zh: {
+    userStatusLogin: '👤 登录账号',
+    userStatusTitle: '点击登录账号',
+    currentAccount: '当前已登录账号',
+    openBoard: '📊 打开求职看板',
+    logout: '退出登录',
+    loggedOutNotice: '您已安全退出当前账号',
+    loginTitle: '登录求职追踪账号',
+    loginDesc: '登录后投递数据将安全隔离同步至您的专属求职看板。',
+    emailLabel: '账号邮箱',
+    passwordLabel: '登录密码',
+    loginBtn: '登录并继续',
+    loggingIn: '登录中...',
+    inputEmailPassword: '请输入邮箱和密码',
+    loginFailed: '登录失败，请检查账号密码',
+    loginError: '登录异常',
+    noAccount: '还没有账号？',
+    registerWeb: '去网页端注册 →',
+    loadingTitle: '正在尝试解析当前网页...',
+    loadingSubtitle: '秒级 DOM 提取 · 结构化解析 · 实时防重核对',
+    extractError: '未能提取当前页面职位信息',
+    btnRetry: '重新抓取',
+    successTitle: '职位记录已成功入库！',
+    btnOpenBoard: '打开看板查看',
+    warnDupTitle: '检测到高危重复投递！',
+    warnDupCount: (n) => `检测到 ${n} 条历史投递记录！`,
+    chkForce: '确认不同岗位，允许强制记录',
+    btnForceSave: '⚠️ 强制记录投递',
+    btnBlockedSave: '⚠️ 发现重复，已阻止提交',
+    starTitle: '设为特别关注 (星标)',
+    starActiveTitle: '已设为特别关注 (点击取消)',
+    unknownCompany: '未知公司',
+    unknownTitle: '未知职位',
+    noLocation: '地点未注明',
+    salaryNegotiable: '薪资面议',
+    salaryNotSpecified: '薪资未注明',
+    labelRating: '岗位评级 (Rating)',
+    labelStatus: '初始状态 (Initial Status)',
+    labelContract: '合同类型 (Contract)',
+    labelWorkMode: '办公方式 (Work Mode)',
+    labelLocation: '工作地点 (Location)',
+    labelSalary: '薪资范围 (Salary)',
+    labelPosted: '发布日期 (Posted)',
+    labelHr: 'HR 联系方式 (姓名/电话)',
+    labelNotes: '投递备注笔记',
+    placeholderLocation: '如: Paris (75)',
+    placeholderSalary: '如: 45k - 55k € 或面议',
+    placeholderPosted: '如: 2026-10-25',
+    placeholderHr: '如: 06 12 34 56 78 或 Marie',
+    placeholderNotes: '如: 投递版本、内推码等...',
+    ratingSPlus: '🔥 S+ (顶级心仪/必投)',
+    ratingS: '💎 S (重点目标)',
+    ratingAPlus: '🌟 A+ (优质岗位)',
+    ratingA: '✨ A (良好机会)',
+    ratingAMinus: '⭐ A- (合格/可投)',
+    ratingB: '🎯 B (基准/海投默认)',
+    ratingC: '💤 C (保底/观望)',
+    optionStatusApplied: '🚀 已直接投递 (Applied)',
+    optionStatusSaved: '📌 先保存未投 (Saved)',
+    optionContractCdi: 'CDI (长期合同)',
+    optionContractCdd: 'CDD (定期合同)',
+    optionContractFreelance: 'FREELANCE (自由职业)',
+    optionContractStage: 'STAGE (实习)',
+    optionContractAlternance: 'ALTERNANCE (学徒工)',
+    optionContractUnknown: 'UNKNOWN (待定/未知)',
+    optionWorkModeNone: '未注明 / 默认',
+    optionWorkModeOnsite: '🏢 现场办公 (On-site)',
+    optionWorkModeHybrid: '🔄 混合办公 (Hybrid)',
+    optionWorkModeRemote: '🏠 远程办公 (Remote)',
+    btnSave: '🚀 确认记录投递',
+    btnSaveSaved: '📌 确认保存为未投递',
+    btnClose: '关闭弹窗',
+    saving: '正在保存入库...',
+    statusApplied: '🚀 已直接投递',
+    statusSaved: '📌 先保存未投',
+    workModeOnsite: '🏢 现场办公',
+    workModeHybrid: '🔄 混合办公',
+    workModeRemote: '🏠 远程',
+    ratingPrefix: '评级: ',
+    settingsLabel: '⚙️ 后端环境设置',
+    envLocal: '本地服务',
+    envOnline: '线上 Vercel',
+    apiUrlLabel: 'Vercel 线上 API 地址',
+    apiUrlPlaceholder: '留空则默认 http://localhost:3000',
+    btnSaveApi: '保存配置',
+    btnResetApi: '恢复本地',
+  },
+  fr: {
+    userStatusLogin: '👤 Se connecter',
+    userStatusTitle: 'Cliquer pour vous connecter',
+    currentAccount: 'Compte actuellement connecté',
+    openBoard: '📊 Ouvrir le tableau de bord',
+    logout: 'Se déconnecter',
+    loggedOutNotice: 'Vous êtes déconnecté en toute sécurité',
+    loginTitle: 'Connexion à FR Job Tracker',
+    loginDesc: 'Vos données seront synchronisées en toute sécurité avec votre tableau de bord.',
+    emailLabel: 'Adresse e-mail',
+    passwordLabel: 'Mot de passe',
+    loginBtn: 'Se connecter et continuer',
+    loggingIn: 'Connexion en cours...',
+    inputEmailPassword: 'Veuillez saisir votre e-mail et mot de passe',
+    loginFailed: 'Échec de connexion, vérifiez vos identifiants',
+    loginError: 'Erreur de connexion',
+    noAccount: 'Pas encore de compte ?',
+    registerWeb: 'Créer un compte sur le Web →',
+    loadingTitle: 'Analyse de la page en cours...',
+    loadingSubtitle: 'Extraction DOM · Analyse structurée · Détection de doublons',
+    extractError: 'Impossible d’extraire les informations de l’offre',
+    btnRetry: 'Réessayer l’extraction',
+    successTitle: 'Candidature enregistrée avec succès !',
+    btnOpenBoard: 'Voir dans le tableau de bord',
+    warnDupTitle: 'Doublon potentiel détecté !',
+    warnDupCount: (n) => `${n} candidature(s) existante(s) trouvée(s) !`,
+    chkForce: 'Poste différent confirmé, forcer l’enregistrement',
+    btnForceSave: '⚠️ Forcer l’enregistrement',
+    btnBlockedSave: '⚠️ Doublon détecté, envoi bloqué',
+    starTitle: 'Ajouter aux favoris (étoile)',
+    starActiveTitle: 'Retirer des favoris',
+    unknownCompany: 'Entreprise inconnue',
+    unknownTitle: 'Poste inconnu',
+    noLocation: 'Lieu non précisé',
+    salaryNegotiable: 'Salaire à négocier',
+    salaryNotSpecified: 'Salaire non précisé',
+    labelRating: 'Évaluation (Rating)',
+    labelStatus: 'Statut initial',
+    labelContract: 'Type de contrat',
+    labelWorkMode: 'Mode de travail',
+    labelLocation: 'Lieu de travail',
+    labelSalary: 'Fourchette salariale',
+    labelPosted: 'Date de publication',
+    labelHr: 'Contact RH (Nom/Tél/Email)',
+    labelNotes: 'Notes de candidature',
+    placeholderLocation: 'Ex : Paris (75)',
+    placeholderSalary: 'Ex : 45k - 55k € ou à négocier',
+    placeholderPosted: 'Ex : 2026-10-25',
+    placeholderHr: 'Ex : 06 12 34 56 78 ou Marie',
+    placeholderNotes: 'Ex : Version CV, recommandation...',
+    ratingSPlus: '🔥 S+ (Cible prioritaire absolue)',
+    ratingS: '💎 S (Objectif clé)',
+    ratingAPlus: '🌟 A+ (Excellente opportunité)',
+    ratingA: '✨ A (Bonne opportunité)',
+    ratingAMinus: '⭐ A- (Opportunité valable)',
+    ratingB: '🎯 B (Candidature standard)',
+    ratingC: '💤 C (Repli / En veille)',
+    optionStatusApplied: '🚀 Postulé directement (Applied)',
+    optionStatusSaved: '📌 Sauvegardé sans postuler (Saved)',
+    optionContractCdi: 'CDI (Contrat à durée indéterminée)',
+    optionContractCdd: 'CDD (Contrat à durée déterminée)',
+    optionContractFreelance: 'FREELANCE (Indépendant)',
+    optionContractStage: 'STAGE (Stage conventionné)',
+    optionContractAlternance: 'ALTERNANCE (Apprentissage / Pro)',
+    optionContractUnknown: 'UNKNOWN (Non spécifié)',
+    optionWorkModeNone: 'Non précisé / Par défaut',
+    optionWorkModeOnsite: '🏢 Sur site (On-site)',
+    optionWorkModeHybrid: '🔄 Hybride (Hybrid)',
+    optionWorkModeRemote: '🏠 Télétravail (Remote)',
+    btnSave: '🚀 Confirmer la candidature',
+    btnSaveSaved: '📌 Sauvegarder sans postuler',
+    btnClose: 'Fermer la fenêtre',
+    saving: 'Enregistrement en cours...',
+    statusApplied: '🚀 Déjà postulé',
+    statusSaved: '📌 Sauvegardé',
+    workModeOnsite: '🏢 Sur site',
+    workModeHybrid: '🔄 Hybride',
+    workModeRemote: '🏠 Télétravail',
+    ratingPrefix: 'Note : ',
+    settingsLabel: '⚙️ Configuration API',
+    envLocal: 'Localhost',
+    envOnline: 'Vercel Cloud',
+    apiUrlLabel: 'URL de l’API en ligne Vercel',
+    apiUrlPlaceholder: 'Vide par défaut : http://localhost:3000',
+    btnSaveApi: 'Enregistrer',
+    btnResetApi: 'Rétablir local',
+  },
+  en: {
+    userStatusLogin: '👤 Sign In',
+    userStatusTitle: 'Click to sign in',
+    currentAccount: 'Currently signed in as',
+    openBoard: '📊 Open Dashboard',
+    logout: 'Sign Out',
+    loggedOutNotice: 'You have been securely signed out',
+    loginTitle: 'Sign in to FR Job Tracker',
+    loginDesc: 'Your applications will be securely isolated and synced with your private board.',
+    emailLabel: 'Account Email',
+    passwordLabel: 'Password',
+    loginBtn: 'Sign In & Continue',
+    loggingIn: 'Signing in...',
+    inputEmailPassword: 'Please enter your email and password',
+    loginFailed: 'Sign in failed, please check your credentials',
+    loginError: 'Sign in error',
+    noAccount: 'Don’t have an account?',
+    registerWeb: 'Register on Web →',
+    loadingTitle: 'Parsing current job page...',
+    loadingSubtitle: 'Instant DOM extraction · Structured parsing · Real-time duplicate check',
+    extractError: 'Failed to extract job information from page',
+    btnRetry: 'Retry Extraction',
+    successTitle: 'Job application saved successfully!',
+    btnOpenBoard: 'View in Dashboard',
+    warnDupTitle: 'Duplicate application detected!',
+    warnDupCount: (n) => `Found ${n} existing application(s)!`,
+    chkForce: 'Confirm different position, force record',
+    btnForceSave: '⚠️ Force Record Application',
+    btnBlockedSave: '⚠️ Duplicate found, submission blocked',
+    starTitle: 'Mark as starred',
+    starActiveTitle: 'Remove from starred',
+    unknownCompany: 'Unknown Company',
+    unknownTitle: 'Unknown Position',
+    noLocation: 'Location not specified',
+    salaryNegotiable: 'Negotiable salary',
+    salaryNotSpecified: 'Salary not specified',
+    labelRating: 'Job Rating',
+    labelStatus: 'Initial Status',
+    labelContract: 'Contract Type',
+    labelWorkMode: 'Work Mode',
+    labelLocation: 'Location',
+    labelSalary: 'Salary Range',
+    labelPosted: 'Posted Date',
+    labelHr: 'HR Contact (Name/Phone/Email)',
+    labelNotes: 'Application Notes',
+    placeholderLocation: 'e.g., Paris (75)',
+    placeholderSalary: 'e.g., 45k - 55k € or competitive',
+    placeholderPosted: 'e.g., 2026-10-25',
+    placeholderHr: 'e.g., +33 6 12 34 56 78 or Marie',
+    placeholderNotes: 'e.g., Resume version, referral code...',
+    ratingSPlus: '🔥 S+ (Top Priority / Dream)',
+    ratingS: '💎 S (Key Target)',
+    ratingAPlus: '🌟 A+ (Great Match)',
+    ratingA: '✨ A (Good Opportunity)',
+    ratingAMinus: '⭐ A- (Qualified / Apply)',
+    ratingB: '🎯 B (Standard / Baseline)',
+    ratingC: '💤 C (Backup / Watchlist)',
+    optionStatusApplied: '🚀 Applied directly',
+    optionStatusSaved: '📌 Saved for later',
+    optionContractCdi: 'CDI (Permanent / Full-Time)',
+    optionContractCdd: 'CDD (Fixed-Term Contract)',
+    optionContractFreelance: 'FREELANCE (Contractor / B2B)',
+    optionContractStage: 'STAGE (Internship)',
+    optionContractAlternance: 'ALTERNANCE (Apprenticeship)',
+    optionContractUnknown: 'UNKNOWN (Unspecified)',
+    optionWorkModeNone: 'Not specified / Default',
+    optionWorkModeOnsite: '🏢 On-site',
+    optionWorkModeHybrid: '🔄 Hybrid',
+    optionWorkModeRemote: '🏠 Remote',
+    btnSave: '🚀 Confirm Application',
+    btnSaveSaved: '📌 Save for Later',
+    btnClose: 'Close Window',
+    saving: 'Saving application...',
+    statusApplied: '🚀 Applied directly',
+    statusSaved: '📌 Saved for later',
+    workModeOnsite: '🏢 On-site',
+    workModeHybrid: '🔄 Hybrid',
+    workModeRemote: '🏠 Remote',
+    ratingPrefix: 'Rating: ',
+    settingsLabel: '⚙️ Backend API Settings',
+    envLocal: 'Local Dev',
+    envOnline: 'Vercel Cloud',
+    apiUrlLabel: 'Online Vercel API Base URL',
+    apiUrlPlaceholder: 'Leave empty for http://localhost:3000',
+    btnSaveApi: 'Save Config',
+    btnResetApi: 'Reset to Local',
+  },
+};
+
+// 语言切换 DOM
+const selectLangEl = document.getElementById('select-lang');
 
 // 设置面板相关 DOM
 const toggleSettingsEl = document.getElementById('toggle-settings');
@@ -7,27 +276,209 @@ const apiUrlInputEl = document.getElementById('api-url-input');
 const saveApiBtnEl = document.getElementById('save-api-btn');
 const resetApiBtnEl = document.getElementById('reset-api-btn');
 const currentEnvLabelEl = document.getElementById('current-env-label');
-const envBadgeTextEl = document.getElementById('env-badge-text');
+
+// 账号与登录相关 DOM
+const btnUserStatusEl = document.getElementById('btn-user-status');
+const userStatusTextEl = document.getElementById('user-status-text');
+const userMenuPopoverEl = document.getElementById('user-menu-popover');
+const popoverUserEmailEl = document.getElementById('popover-user-email');
+const btnGoDashboardEl = document.getElementById('btn-go-dashboard');
+const btnLogoutEl = document.getElementById('btn-logout');
+
+const loginViewEl = document.getElementById('login-view');
+const loginEmailEl = document.getElementById('login-email');
+const loginPasswordEl = document.getElementById('login-password');
+const loginErrorMsgEl = document.getElementById('login-error-msg');
+const btnSubmitLoginEl = document.getElementById('btn-submit-login');
+const linkWebRegisterEl = document.getElementById('link-web-register');
+
+let currentSession = null;
+
+// 读取存储的 Session
+async function getStoredSession() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(['auth_session'], (result) => {
+      resolve(result.auth_session || null);
+    });
+  });
+}
+
+// 写入 Session
+async function setStoredSession(session) {
+  currentSession = session;
+  return new Promise((resolve) => {
+    chrome.storage.local.set({ auth_session: session }, () => {
+      updateUserStatusUI();
+      resolve();
+    });
+  });
+}
+
+// 清除 Session
+async function clearStoredSession() {
+  currentSession = null;
+  return new Promise((resolve) => {
+    chrome.storage.local.remove(['auth_session'], () => {
+      updateUserStatusUI();
+      resolve();
+    });
+  });
+}
+
+// 更新 Header 账号状态按钮 UI
+async function updateUserStatusUI() {
+  if (!currentSession) {
+    currentSession = await getStoredSession();
+  }
+  const t = I18N_EXTENSION[currentLang] || I18N_EXTENSION.zh;
+  if (currentSession && currentSession.user_email) {
+    const prefix = currentSession.user_email.split('@')[0];
+    if (userStatusTextEl) userStatusTextEl.textContent = `👤 ${prefix}`;
+    if (btnUserStatusEl) btnUserStatusEl.title = currentSession.user_email;
+    if (popoverUserEmailEl) popoverUserEmailEl.textContent = currentSession.user_email;
+  } else {
+    if (userStatusTextEl) userStatusTextEl.textContent = t.userStatusLogin;
+    if (btnUserStatusEl) btnUserStatusEl.title = t.userStatusTitle;
+  }
+}
+
+// 获取有效的 Access Token (带自动刷新)
+async function getValidToken() {
+  if (!currentSession) {
+    currentSession = await getStoredSession();
+  }
+  if (!currentSession || !currentSession.access_token) {
+    return null;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  // 若 Token 即将或已经过期（60 秒缓冲），尝试刷新
+  if (currentSession.expires_at && currentSession.expires_at - now < 60 && currentSession.refresh_token) {
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: currentSession.refresh_token }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const newSession = {
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+          user_email: data.user?.email || currentSession.user_email,
+          expires_at: data.session.expires_at,
+        };
+        await setStoredSession(newSession);
+        return newSession.access_token;
+      } else {
+        await clearStoredSession();
+        return null;
+      }
+    } catch {
+      return currentSession.access_token;
+    }
+  }
+
+  return currentSession.access_token;
+}
+
+// 显示登录面板
+function showLoginView(errorMsg = '') {
+  if (loadingEl) loadingEl.style.display = 'none';
+  if (mainViewEl) mainViewEl.style.display = 'none';
+  if (errorViewEl) errorViewEl.style.display = 'none';
+  if (successViewEl) successViewEl.style.display = 'none';
+  if (userMenuPopoverEl) userMenuPopoverEl.style.display = 'none';
+  if (loginViewEl) loginViewEl.style.display = 'block';
+
+  if (loginErrorMsgEl) {
+    if (errorMsg) {
+      loginErrorMsgEl.textContent = errorMsg;
+      loginErrorMsgEl.style.display = 'block';
+    } else {
+      loginErrorMsgEl.style.display = 'none';
+    }
+  }
+}
+
+// 隐藏登录面板
+function hideLoginView() {
+  if (loginViewEl) loginViewEl.style.display = 'none';
+}
+
+// 登录提交处理
+async function handleLogin() {
+  const email = loginEmailEl?.value.trim();
+  const password = loginPasswordEl?.value;
+  const t = I18N_EXTENSION[currentLang] || I18N_EXTENSION.zh;
+
+  if (!email || !password) {
+    if (loginErrorMsgEl) {
+      loginErrorMsgEl.textContent = t.inputEmailPassword;
+      loginErrorMsgEl.style.display = 'block';
+    }
+    return;
+  }
+
+  if (btnSubmitLoginEl) {
+    btnSubmitLoginEl.disabled = true;
+    btnSubmitLoginEl.textContent = t.loggingIn;
+  }
+  if (loginErrorMsgEl) loginErrorMsgEl.style.display = 'none';
+
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || t.loginFailed);
+    }
+
+    const newSession = {
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+      user_email: data.user.email,
+      expires_at: data.session.expires_at,
+    };
+
+    await setStoredSession(newSession);
+    hideLoginView();
+    runExtraction();
+  } catch (err) {
+    if (loginErrorMsgEl) {
+      loginErrorMsgEl.textContent = err.message || t.loginError;
+      loginErrorMsgEl.style.display = 'block';
+    }
+  } finally {
+    if (btnSubmitLoginEl) {
+      btnSubmitLoginEl.disabled = false;
+      btnSubmitLoginEl.textContent = t.loginBtn;
+    }
+  }
+}
 
 // 初始化加载 API 地址配置
 async function initApiBase() {
   return new Promise((resolve) => {
     chrome.storage.local.get(['custom_api_url'], (result) => {
+      const t = I18N_EXTENSION[currentLang] || I18N_EXTENSION.zh;
       if (result.custom_api_url) {
         API_BASE = result.custom_api_url.replace(/\/+$/, '');
         if (currentEnvLabelEl) {
-          currentEnvLabelEl.textContent = '线上 Vercel';
+          currentEnvLabelEl.textContent = t.envOnline;
           currentEnvLabelEl.style.color = '#34d399';
         }
-        if (envBadgeTextEl) envBadgeTextEl.textContent = '线上 Vercel';
         if (apiUrlInputEl) apiUrlInputEl.value = API_BASE;
       } else {
         API_BASE = 'http://localhost:3000';
         if (currentEnvLabelEl) {
-          currentEnvLabelEl.textContent = '本地服务';
+          currentEnvLabelEl.textContent = t.envLocal;
           currentEnvLabelEl.style.color = '#60a5fa';
         }
-        if (envBadgeTextEl) envBadgeTextEl.textContent = '本地服务';
         if (apiUrlInputEl) apiUrlInputEl.value = '';
       }
       resolve(API_BASE);
@@ -1434,6 +1885,14 @@ async function extractPageJobData() {
 async function runExtraction() {
   showLoading();
   await initApiBase();
+  await updateUserStatusUI();
+  const t = I18N_EXTENSION[currentLang] || I18N_EXTENSION.zh;
+
+  const token = await getValidToken();
+  if (!token) {
+    showLoginView(t.loginFirstPrompt);
+    return;
+  }
 
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -1455,20 +1914,29 @@ async function runExtraction() {
     });
 
     if (!injectionResults || !injectionResults[0] || !injectionResults[0].result) {
-      throw new Error('未能从页面提取到有效内容。');
+      throw new Error(t.extractError);
     }
 
     const extracted = injectionResults[0].result;
 
     const res = await fetch(`${API_BASE}/api/parse-and-check`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
       body: JSON.stringify(extracted),
     });
 
+    if (res.status === 401) {
+      await clearStoredSession();
+      showLoginView(t.loginExpiredPrompt);
+      return;
+    }
+
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || `服务端响应错误 (${res.status})，请确保 npm run dev 正在运行`);
+      throw new Error(err.error || `服务端响应错误 (${res.status})`);
     }
 
     const data = await res.json();
@@ -1477,7 +1945,7 @@ async function runExtraction() {
 
     renderResult(currentParsedJob, currentDuplicates);
   } catch (err) {
-    showError(err.message || '抓取解析出现异常');
+    showError(err.message || (I18N_EXTENSION[currentLang] || I18N_EXTENSION.zh).extractError);
   }
 }
 
@@ -1509,15 +1977,16 @@ function updateContractBadge(type) {
 
 // 更新办公模式徽章样式
 function updateWorkModeBadge(mode) {
+  const t = I18N_EXTENSION[currentLang] || I18N_EXTENSION.zh;
   if (mode === 'ONSITE') {
     valWorkModeEl.style.display = 'inline-block';
-    valWorkModeEl.textContent = '🏢 现场办公';
+    valWorkModeEl.textContent = t.workModeOnsite;
   } else if (mode === 'HYBRID') {
     valWorkModeEl.style.display = 'inline-block';
-    valWorkModeEl.textContent = '🔄 混合办公';
+    valWorkModeEl.textContent = t.workModeHybrid;
   } else if (mode === 'REMOTE') {
     valWorkModeEl.style.display = 'inline-block';
-    valWorkModeEl.textContent = '🏠 远程';
+    valWorkModeEl.textContent = t.workModeRemote;
   } else {
     valWorkModeEl.style.display = 'none';
   }
@@ -1537,13 +2006,14 @@ const RATING_ICONS = {
 // 更新星标 UI
 function updateStarUI(starred) {
   isStarred = Boolean(starred);
+  const t = I18N_EXTENSION[currentLang] || I18N_EXTENSION.zh;
   if (btnStarEl) {
     if (isStarred) {
       btnStarEl.classList.add('active');
-      btnStarEl.title = '已设为特别关注 (点击取消)';
+      btnStarEl.title = t.starActiveTitle;
     } else {
       btnStarEl.classList.remove('active');
-      btnStarEl.title = '设为特别关注 (星标)';
+      btnStarEl.title = t.starTitle;
     }
   }
   if (jobCardEl) {
@@ -1560,7 +2030,8 @@ function updateRatingBadge(rating) {
   if (!valRatingEl) return;
   const r = rating || 'B';
   const icon = RATING_ICONS[r] || '🎯';
-  valRatingEl.textContent = `${icon} 评级: ${r}`;
+  const t = I18N_EXTENSION[currentLang] || I18N_EXTENSION.zh;
+  valRatingEl.textContent = `${icon} ${t.ratingPrefix}${r}`;
   if (r === 'S+' || r === 'S') {
     valRatingEl.style.background = 'rgba(239, 68, 68, 0.2)';
     valRatingEl.style.color = '#fca5a5';
@@ -1582,19 +2053,20 @@ function updateRatingBadge(rating) {
 
 // 更新初始状态徽章与保存按钮文字
 function updateStatusUI(status) {
+  const t = I18N_EXTENSION[currentLang] || I18N_EXTENSION.zh;
   if (valStatusBadgeEl) {
     if (status === 'SAVED') {
-      valStatusBadgeEl.textContent = '📌 先保存未投';
+      valStatusBadgeEl.textContent = t.statusSaved;
       valStatusBadgeEl.style.background = 'rgba(245, 158, 11, 0.2)';
       valStatusBadgeEl.style.color = '#fbbf24';
       valStatusBadgeEl.style.borderColor = '#f59e0b';
-      if (!btnSaveEl.disabled) btnSaveEl.textContent = '📌 确认保存为未投递';
+      if (!btnSaveEl.disabled) btnSaveEl.textContent = t.btnSaveSaved;
     } else {
-      valStatusBadgeEl.textContent = '🚀 已直接投递';
+      valStatusBadgeEl.textContent = t.statusApplied;
       valStatusBadgeEl.style.background = 'rgba(37, 99, 235, 0.2)';
       valStatusBadgeEl.style.color = '#60a5fa';
       valStatusBadgeEl.style.borderColor = '#2563eb';
-      if (!btnSaveEl.disabled) btnSaveEl.textContent = '🚀 确认记录投递';
+      if (!btnSaveEl.disabled) btnSaveEl.textContent = t.btnSave;
     }
   }
 }
@@ -1606,10 +2078,12 @@ function renderResult(job, duplicates) {
   successViewEl.style.display = 'none';
   mainViewEl.style.display = 'block';
 
+  const t = I18N_EXTENSION[currentLang] || I18N_EXTENSION.zh;
+
   valPlatformEl.textContent = job.platform || 'OTHER';
   valIdEl.textContent = job.externalJobId ? `#${job.externalJobId}` : '';
-  valCompanyEl.textContent = job.companyRaw || '未知公司';
-  valTitleEl.textContent = job.titleRaw || '未知职位';
+  valCompanyEl.textContent = job.companyRaw || t.unknownCompany;
+  valTitleEl.textContent = job.titleRaw || t.unknownTitle;
 
   // 1. 合同类型下拉框与徽章联动
   const initialContract = job.contractType || 'UNKNOWN';
@@ -1636,11 +2110,11 @@ function renderResult(job, duplicates) {
   valLangEl.textContent = job.language === 'FR' ? '🇫🇷 FR' : '🇬🇧 EN';
 
   // 5. 工作地点输入框与展示联动 (纯地点，绝无工作模式后缀)
-  valLocationEl.textContent = job.location || '地点未注明';
+  valLocationEl.textContent = job.location || t.noLocation;
   inputLocationEl.value = job.location || '';
 
   // 6. 薪资输入框与展示联动
-  valSalaryEl.textContent = job.salaryRange || '薪资面议';
+  valSalaryEl.textContent = job.salaryRange || t.salaryNotSpecified;
   inputSalaryEl.value = job.salaryRange || '';
 
   // 7. 发布日期展示与输入框
@@ -1656,7 +2130,7 @@ function renderResult(job, duplicates) {
   // ⚠️ 查重结果渲染
   if (duplicates && duplicates.length > 0) {
     warningSectionEl.style.display = 'block';
-    warningCountTextEl.textContent = `检测到 ${duplicates.length} 条历史投递记录！`;
+    warningCountTextEl.textContent = t.warnDupCount(duplicates.length);
 
     dupListEl.innerHTML = duplicates
       .map(
@@ -1670,7 +2144,7 @@ function renderResult(job, duplicates) {
             ${d.matchedApplication?.company_raw} · ${d.matchedApplication?.title_raw}
           </div>
           <div style="color: #94a3b8; font-size: 10px; margin-top: 1px;">
-            当前状态: <strong style="color: #cbd5e1;">${d.matchedApplication?.status || 'APPLIED'}</strong>
+            ${t.labelStatus}: <strong style="color: #cbd5e1;">${d.matchedApplication?.status || 'APPLIED'}</strong>
           </div>
         </div>
       `
@@ -1679,22 +2153,23 @@ function renderResult(job, duplicates) {
 
     chkForceEl.checked = false;
     btnSaveEl.disabled = true;
-    btnSaveEl.textContent = '⚠️ 发现重复，已阻止提交';
+    btnSaveEl.textContent = t.btnBlockedSave;
   } else {
     warningSectionEl.style.display = 'none';
     chkForceEl.checked = true;
     btnSaveEl.disabled = false;
     const currentStatus = selectStatusEl?.value || 'APPLIED';
-    btnSaveEl.textContent = currentStatus === 'SAVED' ? '📌 确认保存为未投递' : '🚀 确认记录投递';
+    btnSaveEl.textContent = currentStatus === 'SAVED' ? t.btnSaveSaved : t.btnSave;
   }
 }
 
 // 保存投递
 async function saveApplication() {
   if (!currentParsedJob) return;
+  const t = I18N_EXTENSION[currentLang] || I18N_EXTENSION.zh;
 
   btnSaveEl.disabled = true;
-  btnSaveEl.textContent = '正在保存入库...';
+  btnSaveEl.textContent = t.saving;
 
   try {
     const chosenContract = selectContractEl.value || currentParsedJob.contractType || 'UNKNOWN';
@@ -1704,6 +2179,12 @@ async function saveApplication() {
     const chosenPostedAt = inputPostedEl.value.trim() || null;
     const chosenRating = selectRatingEl?.value || 'B';
     const chosenStatus = selectStatusEl?.value || 'APPLIED';
+
+    const token = await getValidToken();
+    if (!token) {
+      showLoginView(t.loginExpiredPrompt);
+      return;
+    }
 
     const payload = {
       ...currentParsedJob,
@@ -1721,9 +2202,18 @@ async function saveApplication() {
 
     const res = await fetch(`${API_BASE}/api/applications`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
       body: JSON.stringify(payload),
     });
+
+    if (res.status === 401) {
+      await clearStoredSession();
+      showLoginView(t.loginExpiredPrompt);
+      return;
+    }
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -1734,15 +2224,16 @@ async function saveApplication() {
     successViewEl.style.display = 'block';
     successJobNameEl.textContent = `${currentParsedJob.companyRaw} · ${currentParsedJob.titleRaw}`;
   } catch (err) {
-    alert(`保存失败: ${err.message}`);
+    alert(`${t.saveFailed}${err.message}`);
     btnSaveEl.disabled = false;
     const currentStatus = selectStatusEl?.value || 'APPLIED';
-    btnSaveEl.textContent = currentStatus === 'SAVED' ? '📌 确认保存为未投递' : '🚀 确认记录投递';
+    btnSaveEl.textContent = currentStatus === 'SAVED' ? t.btnSaveSaved : t.btnSave;
   }
 }
 
 // 辅助状态切换
 function showLoading() {
+  if (loginViewEl) loginViewEl.style.display = 'none';
   loadingEl.style.display = 'flex';
   mainViewEl.style.display = 'none';
   errorViewEl.style.display = 'none';
@@ -1750,6 +2241,7 @@ function showLoading() {
 }
 
 function showError(msg) {
+  if (loginViewEl) loginViewEl.style.display = 'none';
   loadingEl.style.display = 'none';
   mainViewEl.style.display = 'none';
   successViewEl.style.display = 'none';
@@ -1785,11 +2277,13 @@ selectWorkModeEl.addEventListener('change', () => {
 });
 
 inputLocationEl.addEventListener('input', () => {
-  valLocationEl.textContent = inputLocationEl.value.trim() || '地点未注明';
+  const t = I18N_EXTENSION[currentLang] || I18N_EXTENSION.zh;
+  valLocationEl.textContent = inputLocationEl.value.trim() || t.noLocation;
 });
 
 inputSalaryEl.addEventListener('input', () => {
-  valSalaryEl.textContent = inputSalaryEl.value.trim() || '薪资面议';
+  const t = I18N_EXTENSION[currentLang] || I18N_EXTENSION.zh;
+  valSalaryEl.textContent = inputSalaryEl.value.trim() || t.salaryNegotiable;
 });
 
 inputPostedEl.addEventListener('input', () => {
@@ -1804,12 +2298,13 @@ inputPostedEl.addEventListener('input', () => {
 
 // 事件监听
 chkForceEl.addEventListener('change', () => {
+  const t = I18N_EXTENSION[currentLang] || I18N_EXTENSION.zh;
   if (chkForceEl.checked) {
     btnSaveEl.disabled = false;
-    btnSaveEl.textContent = '⚠️ 强制记录投递';
+    btnSaveEl.textContent = t.btnForceSave;
   } else {
     btnSaveEl.disabled = true;
-    btnSaveEl.textContent = '⚠️ 发现重复，已阻止提交';
+    btnSaveEl.textContent = t.btnBlockedSave;
   }
 });
 
@@ -1821,7 +2316,62 @@ btnOpenBoardEl.addEventListener('click', () => {
   window.close();
 });
 
-// 弹窗打开时立即执行
+// 账号与登录相关交互事件绑定
+if (btnSubmitLoginEl) {
+  btnSubmitLoginEl.addEventListener('click', handleLogin);
+}
+
+if (loginPasswordEl) {
+  loginPasswordEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') handleLogin();
+  });
+}
+
+if (linkWebRegisterEl) {
+  linkWebRegisterEl.addEventListener('click', (e) => {
+    e.preventDefault();
+    chrome.tabs.create({ url: `${API_BASE}/login` });
+  });
+}
+
+if (btnUserStatusEl) {
+  btnUserStatusEl.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const token = await getValidToken();
+    if (!token) {
+      showLoginView();
+    } else {
+      if (userMenuPopoverEl) {
+        userMenuPopoverEl.style.display =
+          userMenuPopoverEl.style.display === 'none' || !userMenuPopoverEl.style.display
+            ? 'block'
+            : 'none';
+      }
+    }
+  });
+}
+
+if (btnLogoutEl) {
+  btnLogoutEl.addEventListener('click', async () => {
+    const t = I18N_EXTENSION[currentLang] || I18N_EXTENSION.zh;
+    await clearStoredSession();
+    if (userMenuPopoverEl) userMenuPopoverEl.style.display = 'none';
+    showLoginView(t.loggedOutNotice);
+  });
+}
+
+if (btnGoDashboardEl) {
+  btnGoDashboardEl.addEventListener('click', () => {
+    chrome.tabs.create({ url: API_BASE });
+  });
+}
+
+document.addEventListener('click', (e) => {
+  if (userMenuPopoverEl && !e.target.closest('#btn-user-status') && !e.target.closest('#user-menu-popover')) {
+    userMenuPopoverEl.style.display = 'none';
+  }
+});
+
 // 绑定设置面板交互事件（做空值保护，绝对不崩溃）
 if (toggleSettingsEl && settingsPanelEl) {
   toggleSettingsEl.addEventListener('click', () => {
@@ -1830,10 +2380,11 @@ if (toggleSettingsEl && settingsPanelEl) {
 }
 
 if (saveApiBtnEl && apiUrlInputEl) {
-  saveApiBtnEl.addEventListener('click', () => {
+  saveApiBtnEl.addEventListener('click', async () => {
     const cleanUrl = apiUrlInputEl.value.trim().replace(/\/+$/, '');
+    await clearStoredSession();
     chrome.storage.local.set({ custom_api_url: cleanUrl }, () => {
-      alert(cleanUrl ? `✅ 已切换至线上后端: ${cleanUrl}` : '✅ 已恢复默认本地服务');
+      alert(cleanUrl ? `✅ Online Backend: ${cleanUrl}\nPlease login again` : '✅ Restored localhost\nPlease login again');
       settingsPanelEl.style.display = 'none';
       runExtraction();
     });
@@ -1841,9 +2392,10 @@ if (saveApiBtnEl && apiUrlInputEl) {
 }
 
 if (resetApiBtnEl && apiUrlInputEl) {
-  resetApiBtnEl.addEventListener('click', () => {
+  resetApiBtnEl.addEventListener('click', async () => {
+    await clearStoredSession();
     chrome.storage.local.remove(['custom_api_url'], () => {
-      alert('✅ 已恢复默认本地服务');
+      alert('✅ Restored localhost\nPlease login again');
       apiUrlInputEl.value = '';
       settingsPanelEl.style.display = 'none';
       runExtraction();
@@ -1851,4 +2403,194 @@ if (resetApiBtnEl && apiUrlInputEl) {
   });
 }
 
-document.addEventListener('DOMContentLoaded', runExtraction);
+// 国际化语言切换与全量 DOM 文本更新
+function applyLocale(lang) {
+  currentLang = ['zh', 'fr', 'en'].includes(lang) ? lang : 'zh';
+  document.documentElement.lang = currentLang === 'zh' ? 'zh-CN' : currentLang;
+  const t = I18N_EXTENSION[currentLang] || I18N_EXTENSION.zh;
+
+  if (selectLangEl) selectLangEl.value = currentLang;
+  updateUserStatusUI();
+
+  // Header 与 Popover
+  const popoverHeader = document.querySelector('#user-menu-popover > div:first-child');
+  if (popoverHeader) popoverHeader.textContent = t.currentAccount;
+  if (btnGoDashboardEl) btnGoDashboardEl.textContent = t.openBoard;
+  if (btnLogoutEl) btnLogoutEl.textContent = t.logout;
+
+  // 登录面板
+  const loginHeaderTitle = document.querySelector('#login-view .card > div:first-child > span:last-child');
+  if (loginHeaderTitle) loginHeaderTitle.textContent = t.loginTitle;
+  const loginDescP = document.querySelector('#login-view .card > p');
+  if (loginDescP) loginDescP.textContent = t.loginDesc;
+  const emailGroupLabel = document.querySelector('#login-view .field-group:nth-of-type(1) .field-label');
+  if (emailGroupLabel) emailGroupLabel.textContent = t.emailLabel;
+  const passwordGroupLabel = document.querySelector('#login-view .field-group:nth-of-type(2) .field-label');
+  if (passwordGroupLabel) passwordGroupLabel.textContent = t.passwordLabel;
+  if (btnSubmitLoginEl && !btnSubmitLoginEl.disabled) btnSubmitLoginEl.textContent = t.loginBtn;
+  const registerBox = document.querySelector('#login-view .card > div:last-child');
+  if (registerBox) {
+    registerBox.innerHTML = `${t.noAccount} <a href="#" id="link-web-register" style="color: #60a5fa; text-decoration: none; font-weight: 600;">${t.registerWeb}</a>`;
+    const newLink = document.getElementById('link-web-register');
+    if (newLink) {
+      newLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        chrome.tabs.create({ url: `${API_BASE}/login` });
+      });
+    }
+  }
+
+  // 加载中面板
+  const loadingTitleEl = document.querySelector('#loading > div:nth-child(2)');
+  if (loadingTitleEl) loadingTitleEl.textContent = t.loadingTitle;
+  const loadingSubtitleEl = document.querySelector('#loading > div:nth-child(3)');
+  if (loadingSubtitleEl) loadingSubtitleEl.textContent = t.loadingSubtitle;
+
+  // 错误重试按钮
+  if (btnRetryEl) btnRetryEl.textContent = t.btnRetry;
+
+  // 成功面板
+  const successTitleEl = document.querySelector('#success-view > div:nth-child(2)');
+  if (successTitleEl) successTitleEl.textContent = t.successTitle;
+  if (btnOpenBoardEl) btnOpenBoardEl.textContent = t.btnOpenBoard;
+
+  // 查重区域
+  const chkForceParent = document.querySelector('#warning-section label');
+  if (chkForceParent && chkForceEl) {
+    const isChecked = chkForceEl.checked;
+    chkForceParent.innerHTML = `<input type="checkbox" id="chk-force"> ${t.chkForce}`;
+    const newChk = document.getElementById('chk-force');
+    if (newChk) {
+      newChk.checked = isChecked;
+      newChk.addEventListener('change', () => {
+        const curT = I18N_EXTENSION[currentLang] || I18N_EXTENSION.zh;
+        if (newChk.checked) {
+          btnSaveEl.disabled = false;
+          btnSaveEl.textContent = curT.btnForceSave;
+        } else {
+          btnSaveEl.disabled = true;
+          btnSaveEl.textContent = curT.btnBlockedSave;
+        }
+      });
+    }
+  }
+
+  // 主表单各字段 Label
+  const labels = document.querySelectorAll('#main-view .field-label');
+  if (labels[0]) labels[0].textContent = t.labelRating;
+  if (labels[1]) labels[1].textContent = t.labelStatus;
+  if (labels[2]) labels[2].textContent = t.labelContract;
+  if (labels[3]) labels[3].textContent = t.labelWorkMode;
+  if (labels[4]) labels[4].textContent = t.labelLocation;
+  if (labels[5]) labels[5].textContent = t.labelSalary;
+  if (labels[6]) labels[6].textContent = t.labelPosted;
+  if (labels[7]) labels[7].textContent = t.labelHr;
+  if (labels[8]) labels[8].textContent = t.labelNotes;
+
+  // 输入框占位符
+  if (inputLocationEl) inputLocationEl.placeholder = t.placeholderLocation;
+  if (inputSalaryEl) inputSalaryEl.placeholder = t.placeholderSalary;
+  if (inputPostedEl) inputPostedEl.placeholder = t.placeholderPosted;
+  if (inputHrEl) inputHrEl.placeholder = t.placeholderHr;
+  if (inputNotesEl) inputNotesEl.placeholder = t.placeholderNotes;
+
+  // 各 Select 下拉选项文案动态更新
+  if (selectRatingEl && selectRatingEl.options.length >= 7) {
+    const curVal = selectRatingEl.value;
+    selectRatingEl.options[0].textContent = t.ratingSPlus;
+    selectRatingEl.options[1].textContent = t.ratingS;
+    selectRatingEl.options[2].textContent = t.ratingAPlus;
+    selectRatingEl.options[3].textContent = t.ratingA;
+    selectRatingEl.options[4].textContent = t.ratingAMinus;
+    selectRatingEl.options[5].textContent = t.ratingB;
+    selectRatingEl.options[6].textContent = t.ratingC;
+    selectRatingEl.value = curVal;
+  }
+
+  if (selectStatusEl && selectStatusEl.options.length >= 2) {
+    const curVal = selectStatusEl.value;
+    selectStatusEl.options[0].textContent = t.optionStatusApplied;
+    selectStatusEl.options[1].textContent = t.optionStatusSaved;
+    selectStatusEl.value = curVal;
+  }
+
+  if (selectContractEl && selectContractEl.options.length >= 6) {
+    const curVal = selectContractEl.value;
+    selectContractEl.options[0].textContent = t.optionContractCdi;
+    selectContractEl.options[1].textContent = t.optionContractCdd;
+    selectContractEl.options[2].textContent = t.optionContractFreelance;
+    selectContractEl.options[3].textContent = t.optionContractStage;
+    selectContractEl.options[4].textContent = t.optionContractAlternance;
+    selectContractEl.options[5].textContent = t.optionContractUnknown;
+    selectContractEl.value = curVal;
+  }
+
+  if (selectWorkModeEl && selectWorkModeEl.options.length >= 4) {
+    const curVal = selectWorkModeEl.value;
+    selectWorkModeEl.options[0].textContent = t.optionWorkModeNone;
+    selectWorkModeEl.options[1].textContent = t.optionWorkModeOnsite;
+    selectWorkModeEl.options[2].textContent = t.optionWorkModeHybrid;
+    selectWorkModeEl.options[3].textContent = t.optionWorkModeRemote;
+    selectWorkModeEl.value = curVal;
+  }
+
+  // 按钮文案
+  if (btnCloseEl) btnCloseEl.textContent = t.btnClose;
+  if (btnSaveEl) {
+    const chk = document.getElementById('chk-force');
+    if (chk && !chk.checked && currentDuplicates.length > 0) {
+      btnSaveEl.textContent = t.btnBlockedSave;
+    } else if (chk && chk.checked && currentDuplicates.length > 0) {
+      btnSaveEl.textContent = t.btnForceSave;
+    } else {
+      btnSaveEl.textContent = selectStatusEl?.value === 'SAVED' ? t.btnSaveSaved : t.btnSave;
+    }
+  }
+
+  // 设置面板
+  if (toggleSettingsEl) {
+    const envText = API_BASE.includes('localhost') ? t.envLocal : t.envOnline;
+    toggleSettingsEl.innerHTML = `${t.settingsLabel} (<span id="current-env-label" style="color: ${API_BASE.includes('localhost') ? '#60a5fa' : '#34d399'}">${envText}</span>)`;
+  }
+  const apiLabel = document.querySelector('#settings-panel .field-label');
+  if (apiLabel) apiLabel.textContent = t.apiUrlLabel;
+  if (apiUrlInputEl) apiUrlInputEl.placeholder = t.apiUrlPlaceholder;
+  if (saveApiBtnEl) saveApiBtnEl.textContent = t.btnSaveApi;
+  if (resetApiBtnEl) resetApiBtnEl.textContent = t.btnResetApi;
+
+  // 刷新动态徽章
+  if (selectRatingEl) updateRatingBadge(selectRatingEl.value);
+  if (selectStatusEl) updateStatusUI(selectStatusEl.value);
+  if (selectWorkModeEl) updateWorkModeBadge(selectWorkModeEl.value);
+  updateStarUI(isStarred);
+}
+
+// 插件初始化入口（含语言检测与加载）
+async function initApp() {
+  const lang = await new Promise((resolve) => {
+    chrome.storage.local.get(['ui_lang'], (res) => {
+      if (res.ui_lang && ['zh', 'fr', 'en'].includes(res.ui_lang)) {
+        resolve(res.ui_lang);
+      } else {
+        const sys = (chrome.i18n?.getUILanguage?.() || navigator.language || 'zh').toLowerCase();
+        if (sys.startsWith('fr')) resolve('fr');
+        else if (sys.startsWith('en')) resolve('en');
+        else resolve('zh');
+      }
+    });
+  });
+  currentLang = lang;
+  if (selectLangEl) {
+    selectLangEl.value = lang;
+    selectLangEl.addEventListener('change', (e) => {
+      const newLang = e.target.value;
+      currentLang = newLang;
+      chrome.storage.local.set({ ui_lang: newLang });
+      applyLocale(newLang);
+    });
+  }
+  applyLocale(lang);
+  await runExtraction();
+}
+
+document.addEventListener('DOMContentLoaded', initApp);

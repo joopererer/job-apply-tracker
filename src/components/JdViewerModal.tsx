@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { ApplicationRecord } from '@/lib/supabase';
+import { useI18n } from '@/lib/i18n/I18nProvider';
 
 interface JdViewerModalProps {
   isOpen: boolean;
@@ -80,6 +81,7 @@ export function FormattedJdRenderer({
   content: string;
   searchKeyword?: string;
 }) {
+  const { t } = useI18n();
   const blocks = useMemo(() => {
     if (!content) return [];
     const lines = content.split(/\r?\n/).map((l) => l.trim());
@@ -89,7 +91,7 @@ export function FormattedJdRenderer({
   if (!content) {
     return (
       <div className="py-12 text-center text-slate-500 text-sm">
-        该职位尚未抓取或未录入 JD 正文内容
+        {t('jdViewer.noContent')}
       </div>
     );
   }
@@ -155,6 +157,7 @@ export default function JdViewerModal({
   onClose,
   job,
 }: JdViewerModalProps) {
+  const { t } = useI18n();
   const [viewMode, setViewMode] = useState<'formatted' | 'raw'>('formatted');
   const [keyword, setKeyword] = useState('');
   const [copied, setCopied] = useState(false);
@@ -247,11 +250,11 @@ export default function JdViewerModal({
                   {job.contract_type || 'UNKNOWN'}
                 </span>
                 <span className="px-2 py-0.5 rounded-lg text-xs font-bold bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
-                  {job.language === 'FR' ? '🇫🇷 法语' : '🇬🇧 英语'}
+                  {job.language === 'FR' ? '🇫🇷 FR' : '🇬🇧 EN'}
                 </span>
                 {job.work_mode && (
                   <span className="px-2 py-0.5 rounded-lg text-xs font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30">
-                    {job.work_mode === 'ONSITE' ? '🏢 现场办公' : job.work_mode === 'HYBRID' ? '🔄 混合办公' : '🏠 远程'}
+                    {job.work_mode === 'ONSITE' ? `🏢 ${t('workMode.ONSITE')}` : job.work_mode === 'HYBRID' ? `🔄 ${t('workMode.HYBRID')}` : `🏠 ${t('workMode.REMOTE')}`}
                   </span>
                 )}
                 {job.platform && job.platform !== 'OTHER' && (
@@ -270,7 +273,7 @@ export default function JdViewerModal({
               type="button"
               onClick={onClose}
               className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition shrink-0"
-              title="按 Esc 或点击关闭"
+              title={t('jdViewer.closeTooltip')}
             >
               <X className="w-5 h-5" />
             </button>
@@ -292,7 +295,7 @@ export default function JdViewerModal({
             {job.posted_at && (
               <div className="flex items-center gap-1 text-slate-400">
                 <Calendar className="w-3.5 h-3.5 text-slate-500" />
-                <span>发布于 {job.posted_at}</span>
+                <span>{t('jdViewer.postedOn', { date: job.posted_at })}</span>
               </div>
             )}
             {hrText && (
@@ -308,7 +311,7 @@ export default function JdViewerModal({
                 rel="noreferrer"
                 className="ml-auto inline-flex items-center gap-1 text-blue-400 hover:underline"
               >
-                原招聘网页 <ExternalLink className="w-3 h-3" />
+                {t('jdViewer.originalPage')} <ExternalLink className="w-3 h-3" />
               </a>
             )}
           </div>
@@ -322,7 +325,7 @@ export default function JdViewerModal({
                 type="text"
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
-                placeholder="🔍 搜索 JD 关键词 (如: Flutter, CDI, Télétravail)..."
+                placeholder={t('jdViewer.searchPlaceholder')}
                 className="w-full pl-9 pr-20 py-1.5 bg-slate-950 border border-slate-700/80 focus:border-amber-400 focus:ring-1 focus:ring-amber-400/30 rounded-xl text-xs text-slate-100 placeholder-slate-500 outline-none transition"
               />
               {keyword && (
@@ -334,7 +337,7 @@ export default function JdViewerModal({
                         : 'bg-slate-800 text-slate-400'
                     }`}
                   >
-                    {matchCount} 处匹配
+                    {t('jdViewer.matchedCount', { count: matchCount })}
                   </span>
                   <button
                     type="button"
@@ -360,7 +363,7 @@ export default function JdViewerModal({
                   }`}
                 >
                   <Sparkles className="w-3.5 h-3.5" />
-                  智能排版
+                  {t('jdViewer.tabSmart')}
                 </button>
                 <button
                   type="button"
@@ -372,7 +375,7 @@ export default function JdViewerModal({
                   }`}
                 >
                   <FileText className="w-3.5 h-3.5" />
-                  原始纯文本
+                  {t('jdViewer.tabRaw')}
                 </button>
               </div>
 
@@ -385,12 +388,12 @@ export default function JdViewerModal({
                 {copied ? (
                   <>
                     <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span className="text-emerald-400">已复制!</span>
+                    <span className="text-emerald-400">{t('jdViewer.copied')}</span>
                   </>
                 ) : (
                   <>
                     <Copy className="w-3.5 h-3.5 text-slate-400" />
-                    <span>复制全文</span>
+                    <span>{t('jdViewer.copyAll')}</span>
                   </>
                 )}
               </button>

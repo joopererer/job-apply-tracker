@@ -10,7 +10,9 @@ import {
   cleanAndFormatJd,
   cleanLocation,
 } from '@/lib/scraper';
-import { supabase, ApplicationRecord, DuplicateCheckResult } from '@/lib/supabase';
+import { ApplicationRecord, DuplicateCheckResult } from '@/lib/supabase';
+import { authenticateRequest, unauthorizedResponse } from '@/lib/auth';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 /**
  * 文本相似度算法 (融合 Token Jaccard 与 Bigram Dice 系数)
@@ -19,7 +21,6 @@ function calculateSimilarity(str1: string, str2: string): number {
   if (!str1 || !str2) return 0;
   if (str1 === str2) return 1;
 
-  // 1. Token Jaccard
   const tokens1 = str1.split(/\s+/).filter(Boolean);
   const tokens2 = str2.split(/\s+/).filter(Boolean);
   const set1 = new Set(tokens1);
@@ -32,7 +33,6 @@ function calculateSimilarity(str1: string, str2: string): number {
   const tokenUnion = new Set([...tokens1, ...tokens2]).size;
   const jaccard = tokenUnion > 0 ? tokenIntersection / tokenUnion : 0;
 
-  // 2. Character Bigram Dice
   const getBigrams = (s: string) => {
     const bigrams = new Set<string>();
     for (let i = 0; i < s.length - 1; i++) {
@@ -54,22 +54,25 @@ function calculateSimilarity(str1: string, str2: string): number {
 }
 
 /**
- * 本地多级重复投递检查后备逻辑 (在 Supabase RPC 未就绪或网络异常时自动激活)
+ * 多级重复投递检查 (用户数据严格隔离: 仅检查该用户自身的投递记录)
  * L1: 同平台同 ID
  * L2: 同一 Clean URL
  * L3: 同公司且职位名相似度 > 0.45
  */
 async function checkDuplicatesFallback(
-  parsedJob: ScrapedJob
+  parsedJob: ScrapedJob,
+  userId: string,
+  client: SupabaseClient
 ): Promise<DuplicateCheckResult[]> {
   const duplicates: DuplicateCheckResult[] = [];
   const matchedIds = new Set<string>();
 
   // L1: 同平台同 ID 检查
   if (parsedJob.platform !== 'OTHER' && parsedJob.externalJobId) {
-    const { data: l1Matches } = await supabase
+    const { data: l1Matches } = await client
       .from('applications')
       .select('*')
+      .eq('user_id', userId)
       .eq('platform', parsedJob.platform)
       .eq('external_job_id', parsedJob.externalJobId);
 
@@ -87,9 +90,10 @@ async function checkDuplicatesFallback(
 
   // L2: 同一 Clean URL 检查
   if (parsedJob.cleanUrl) {
-    const { data: l2Matches } = await supabase
+    const { data: l2Matches } = await client
       .from('applications')
       .select('*')
+      .eq('user_id', userId)
       .eq('clean_url', parsedJob.cleanUrl);
 
     if (l2Matches && l2Matches.length > 0) {
@@ -108,9 +112,10 @@ async function checkDuplicatesFallback(
 
   // L3: 同公司且职位名相似度 > 0.45
   if (parsedJob.companyNorm && parsedJob.titleNorm) {
-    const { data: companyJobs } = await supabase
+    const { data: companyJobs } = await client
       .from('applications')
       .select('*')
+      .eq('user_id', userId)
       .eq('company_norm', parsedJob.companyNorm);
 
     if (companyJobs && companyJobs.length > 0) {
@@ -140,11 +145,17 @@ async function checkDuplicatesFallback(
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await authenticateRequest(request);
+    if (!auth) {
+      return unauthorizedResponse();
+    }
+
+    const { user, client } = auth;
     const body = await request.json().catch(() => ({}));
     const { url, rawText, domExtracted } = body;
     let html: string | undefined = body.html;
 
-    // 1. 如果仅有 url 且没有 html / domExtracted，后端尝试 fetch 页面 (带超时与真实浏览器 User-Agent)
+    // 1. 如果仅有 url 且没有 html / domExtracted，后端尝试 fetch 页面
     if (url && !html && !domExtracted) {
       try {
         const fetchRes = await fetch(url, {
@@ -162,7 +173,7 @@ export async function POST(request: NextRequest) {
           html = await fetchRes.text();
         }
       } catch {
-        // 遇到 403 / Cloudflare / 4000ms 超时静默捕获，绝不崩溃
+        // 遇到 403 / Cloudflare / 超时静默捕获
       }
     }
 
@@ -173,7 +184,7 @@ export async function POST(request: NextRequest) {
       rawText,
     });
 
-    // 3. 若前端/插件提供了 DOM 提取字段 (domExtracted)，与解析结果进行加权融合并重新归一化
+    // 3. 若前端/插件提供了 DOM 提取字段，与解析结果融合
     if (domExtracted && typeof domExtracted === 'object') {
       const mergedCompanyRaw =
         domExtracted.companyRaw || parsedJob.companyRaw || '';
@@ -228,7 +239,7 @@ export async function POST(request: NextRequest) {
       };
     }
 
-    // 特殊处理 Indeed 带 vjk/jk 的分栏搜索页：强制以右侧分栏提取为准并归一化 cleanUrl
+    // 特殊处理 Indeed 带 vjk/jk 的分栏搜索页
     if (url && (url.includes('vjk=') || url.includes('jk=')) && (url.includes('indeed.') || parsedJob.platform === 'INDEED')) {
       const vjkMatch = url.match(/[?&](?:vjk|jk)=([a-zA-Z0-9]+)/i);
       const effectiveJk = domExtracted?.externalJobId || (vjkMatch ? vjkMatch[1] : null);
@@ -258,7 +269,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 特殊处理 LinkedIn (包括 /jobs/view/ 与 /jobs/search/)
+    // 特殊处理 LinkedIn
     if (url && (url.includes('linkedin.com') || parsedJob.platform === 'LINKEDIN')) {
       if (domExtracted?.titleRaw) {
         parsedJob.titleRaw = domExtracted.titleRaw;
@@ -282,14 +293,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 关键防污保底：绝不允许 location 误装为职位标题（直接对比字符串，避免 normalizeTitle 误伤中文地址）
+    // 关键防污保底
     if (parsedJob.location && parsedJob.titleRaw) {
       if (parsedJob.location.trim().toLowerCase() === parsedJob.titleRaw.trim().toLowerCase()) {
         parsedJob.location = null;
       }
     }
 
-    // 关键排查保底：只要客户端 (Chrome 插件等) 提取到了有效 location 且不等于 titleRaw，100% 原样强制保留
     if (domExtracted?.location && typeof domExtracted.location === 'string' && domExtracted.location.trim()) {
       const trimmedLoc = domExtracted.location.trim();
       if (!parsedJob.titleRaw || trimmedLoc.toLowerCase() !== parsedJob.titleRaw.trim().toLowerCase()) {
@@ -297,30 +307,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 4. 调用 Supabase 检查重复投递（优先 RPC check_job_duplicates，故障时自动降级 fallback）
-    let duplicates: DuplicateCheckResult[] = [];
-
-    try {
-      const { data: rpcData, error: rpcError } = await supabase.rpc(
-        'check_job_duplicates',
-        {
-          p_platform: parsedJob.platform,
-          p_external_job_id: parsedJob.externalJobId,
-          p_clean_url: parsedJob.cleanUrl,
-          p_company_norm: parsedJob.companyNorm,
-          p_title_norm: parsedJob.titleNorm,
-        }
-      );
-
-      if (!rpcError && Array.isArray(rpcData)) {
-        duplicates = rpcData;
-      } else {
-        // RPC 不存在或报错时，执行本地高可靠查询检查
-        duplicates = await checkDuplicatesFallback(parsedJob);
-      }
-    } catch {
-      duplicates = await checkDuplicatesFallback(parsedJob);
-    }
+    // 4. 重复检查 (加锁当前用户 user_id 隔离)
+    const duplicates = await checkDuplicatesFallback(parsedJob, user.id, client);
 
     return NextResponse.json({
       parsedJob,
@@ -335,3 +323,13 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
+}

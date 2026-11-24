@@ -14,7 +14,8 @@ import {
   XCircle,
 } from 'lucide-react';
 import { ScrapedJob, ContractType, WorkMode } from '@/lib/scraper';
-import { DuplicateCheckResult } from '@/lib/supabase';
+import { DuplicateCheckResult, supabase } from '@/lib/supabase';
+import { useI18n } from '@/lib/i18n/I18nProvider';
 
 interface QuickAddModalProps {
   isOpen: boolean;
@@ -22,15 +23,15 @@ interface QuickAddModalProps {
   onSuccess: () => void;
 }
 
-function formatDaysAgo(isoDate: string): string {
-  if (!isoDate) return '近期';
+function formatDaysAgo(isoDate: string, t?: (k: string, p?: any) => string): string {
+  if (!isoDate) return t ? t('card.recent') : '近期';
   const diffMs = Date.now() - new Date(isoDate).getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  if (diffDays <= 0) return '今天';
-  if (diffDays === 1) return '昨天';
-  if (diffDays < 7) return `${diffDays} 天前`;
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)} 周前`;
-  return `${Math.floor(diffDays / 30)} 个月前`;
+  if (diffDays <= 0) return t ? t('card.today') : '今天';
+  if (diffDays === 1) return t ? t('card.yesterday') : '昨天';
+  if (diffDays < 7) return t ? t('card.daysAgo', { n: diffDays }) : `${diffDays} 天前`;
+  if (diffDays < 30) return t ? t('card.weeksAgo', { n: Math.floor(diffDays / 7) }) : `${Math.floor(diffDays / 7)} 周前`;
+  return t ? t('card.monthsAgo', { n: Math.floor(diffDays / 30) }) : `${Math.floor(diffDays / 30)} 个月前`;
 }
 
 export default function QuickAddModal({
@@ -38,6 +39,7 @@ export default function QuickAddModal({
   onClose,
   onSuccess,
 }: QuickAddModalProps) {
+  const { t } = useI18n();
   const [inputContent, setInputContent] = useState('');
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
@@ -119,7 +121,7 @@ export default function QuickAddModal({
   const triggerParseAndCheck = async (content = inputContent) => {
     const trimmed = content.trim();
     if (!trimmed) {
-      setParseError('请输入或粘贴求职网址、或者岗位分享文本。');
+      setParseError(t('quickAdd.emptyAlert'));
       return;
     }
 
@@ -138,9 +140,15 @@ export default function QuickAddModal({
         url = urlMatch[0];
       }
 
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
       const res = await fetch('/api/parse-and-check', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ url, rawText }),
       });
 
@@ -194,9 +202,15 @@ export default function QuickAddModal({
         status: editStatus || 'APPLIED',
       };
 
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
       const res = await fetch('/api/applications', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(payload),
       });
 
@@ -231,9 +245,9 @@ export default function QuickAddModal({
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                录入新岗位
+                {t('quickAdd.title')}
                 <span className="text-[11px] font-normal text-slate-400 hidden sm:inline">
-                  (支持 Apec · Indeed · HelloWork · LinkedIn · WTTJ)
+                  {t('quickAdd.supportedPlatforms')}
                 </span>
               </h2>
             </div>
@@ -255,7 +269,7 @@ export default function QuickAddModal({
               <textarea
                 rows={2}
                 value={inputContent}
-                placeholder="粘贴法国招聘岗位 URL 或 App 分享的全部文本..."
+                placeholder={t('quickAdd.placeholder')}
                 onChange={(e) => setInputContent(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-slate-950/90 border border-slate-700/80 rounded-2xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition resize-none"
               />
@@ -277,7 +291,7 @@ export default function QuickAddModal({
                 className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-98 text-slate-200 text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 transition border border-slate-700/70"
               >
                 <Clipboard className="w-4 h-4 text-blue-400" />
-                <span>📋 读取剪贴板</span>
+                <span>📋 {t('quickAdd.readClipboard')}</span>
               </button>
 
               <button
@@ -289,12 +303,12 @@ export default function QuickAddModal({
                 {parsing ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>解析查重中...</span>
+                    <span>{t('quickAdd.parsing')}</span>
                   </>
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4" />
-                    <span>⚡ 解析并查重</span>
+                    <span>⚡ {t('quickAdd.parseBtn')}</span>
                   </>
                 )}
               </button>
@@ -319,10 +333,10 @@ export default function QuickAddModal({
                     <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
                     <div>
                       <h3 className="text-sm font-bold text-amber-200">
-                        ⚠️ 警告：检测到 {duplicates.length} 条高危重复历史投递！
+                        {t('quickAdd.dupWarningTitle', { count: duplicates.length })}
                       </h3>
                       <p className="text-xs text-amber-300/80 mt-0.5">
-                        防止短时间内重复投递同团队职位，避免给 HR 带来糟糕体验。
+                        {t('quickAdd.dupWarningDesc')}
                       </p>
                     </div>
                   </div>
@@ -335,11 +349,13 @@ export default function QuickAddModal({
                       >
                         <div className="flex items-center justify-between">
                           <span className="px-2 py-0.5 rounded font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                            {dup.level} 命中
+                            {t('quickAdd.dupHit', { level: dup.level })}
                           </span>
                           <span className="text-slate-400">
-                            投递于: {dup.matchedApplication?.applied_at?.slice(0, 10)} (
-                            {formatDaysAgo(dup.matchedApplication?.applied_at || '')})
+                            {t('quickAdd.dupAppliedAt', {
+                              date: dup.matchedApplication?.applied_at?.slice(0, 10),
+                              daysAgo: formatDaysAgo(dup.matchedApplication?.applied_at || '', t),
+                            })}
                           </span>
                         </div>
                         <p className="font-semibold text-slate-100 text-sm">
@@ -348,7 +364,7 @@ export default function QuickAddModal({
                         <p className="text-amber-200">{dup.reason}</p>
                         <div className="flex items-center justify-between text-slate-400 pt-1">
                           <span>
-                            当时状态: <strong className="text-slate-200">{dup.matchedApplication?.status}</strong>
+                            {t('quickAdd.dupStatusAtTime')} <strong className="text-slate-200">{dup.matchedApplication?.status}</strong>
                           </span>
                           {dup.matchedApplication?.clean_url && (
                             <a
@@ -357,7 +373,7 @@ export default function QuickAddModal({
                               rel="noreferrer"
                               className="text-blue-400 hover:underline inline-flex items-center gap-1"
                             >
-                              历史投递链接 <ExternalLink className="w-3 h-3" />
+                              {t('quickAdd.dupOriginalLink')} <ExternalLink className="w-3 h-3" />
                             </a>
                           )}
                         </div>
@@ -374,14 +390,14 @@ export default function QuickAddModal({
                       }}
                       className="flex-1 py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition"
                     >
-                      放弃重复投递 (清除)
+                      {t('quickAdd.dupDiscard')}
                     </button>
                     <button
                       type="button"
                       onClick={() => setForceRecordAllowed(true)}
                       className="py-2 px-3 rounded-xl bg-amber-600/30 hover:bg-amber-600/40 text-amber-200 border border-amber-500/50 text-xs font-bold transition"
                     >
-                      仍然强制记录
+                      {t('quickAdd.dupForce')}
                     </button>
                   </div>
                 </div>
@@ -392,7 +408,7 @@ export default function QuickAddModal({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 mb-1">
-                      公司名称 (Company) *
+                      {t('quickAdd.companyLabel')}
                     </label>
                     <input
                       type="text"
@@ -404,7 +420,7 @@ export default function QuickAddModal({
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 mb-1">
-                      职位名称 (Title) *
+                      {t('quickAdd.titleLabel')}
                     </label>
                     <input
                       type="text"
@@ -418,7 +434,7 @@ export default function QuickAddModal({
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 mb-1">
-                      合同类型
+                      {t('quickAdd.contractLabel')}
                     </label>
                     <select
                       value={editContract}
@@ -436,23 +452,23 @@ export default function QuickAddModal({
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 mb-1">
-                      办公方式
+                      {t('quickAdd.workModeLabel')}
                     </label>
                     <select
                       value={editWorkMode}
                       onChange={(e) => setEditWorkMode(e.target.value as WorkMode | '')}
                       className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-bold cursor-pointer"
                     >
-                      <option value="">未注明</option>
-                      <option value="ONSITE">🏢 现场</option>
-                      <option value="HYBRID">🔄 混合</option>
-                      <option value="REMOTE">🏠 远程</option>
+                      <option value="">{t('quickAdd.workModeNotSpecified')}</option>
+                      <option value="ONSITE">🏢 {t('workMode.ONSITE')}</option>
+                      <option value="HYBRID">🔄 {t('workMode.HYBRID')}</option>
+                      <option value="REMOTE">🏠 {t('workMode.REMOTE')}</option>
                     </select>
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 mb-1">
-                      语言
+                      {t('quickAdd.languageLabel')}
                     </label>
                     <div className="grid grid-cols-2 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
                       {(['FR', 'EN'] as const).map((l) => (
@@ -474,7 +490,7 @@ export default function QuickAddModal({
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 mb-1">
-                      工作地点
+                      {t('quickAdd.locationLabel')}
                     </label>
                     <input
                       type="text"
@@ -487,7 +503,7 @@ export default function QuickAddModal({
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 mb-1">
-                      薪资范围
+                      {t('quickAdd.salaryLabel')}
                     </label>
                     <input
                       type="text"
@@ -502,7 +518,7 @@ export default function QuickAddModal({
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 mb-1">
-                      发布日期
+                      {t('quickAdd.postedLabel')}
                     </label>
                     <input
                       type="text"
@@ -515,7 +531,7 @@ export default function QuickAddModal({
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 mb-1">
-                      HR 联系方式
+                      {t('quickAdd.hrLabel')}
                     </label>
                     <input
                       type="text"
@@ -528,7 +544,7 @@ export default function QuickAddModal({
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 mb-1">
-                      投递备注
+                      {t('quickAdd.notesLabel')}
                     </label>
                     <input
                       type="text"
@@ -543,40 +559,40 @@ export default function QuickAddModal({
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 mb-1">
-                      岗位评级
+                      {t('quickAdd.ratingLabel')}
                     </label>
                     <select
                       value={editRating}
                       onChange={(e) => setEditRating(e.target.value)}
                       className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-bold cursor-pointer"
                     >
-                      <option value="S+">🔥 S+ 顶尖向往</option>
-                      <option value="S">💎 S 重点目标</option>
-                      <option value="A+">🌟 A+ 优质机会</option>
-                      <option value="A">✨ A 值得一试</option>
-                      <option value="A-">👍 A- 基本契合</option>
-                      <option value="B">🎯 B 普通日常 (默认)</option>
-                      <option value="C">📦 C 保底兜底</option>
+                      <option value="S+">{t('rating.SPlus')}</option>
+                      <option value="S">{t('rating.S')}</option>
+                      <option value="A+">{t('rating.APlus')}</option>
+                      <option value="A">{t('rating.A')}</option>
+                      <option value="A-">{t('rating.AMinus')}</option>
+                      <option value="B">{t('rating.B')}</option>
+                      <option value="C">{t('rating.C')}</option>
                     </select>
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 mb-1">
-                      初始状态
+                      {t('quickAdd.initialStatusLabel')}
                     </label>
                     <select
                       value={editStatus}
                       onChange={(e) => setEditStatus(e.target.value)}
                       className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-bold cursor-pointer"
                     >
-                      <option value="APPLIED">🚀 已直接投递 (APPLIED)</option>
-                      <option value="SAVED">📌 先保存/未投递 (SAVED)</option>
+                      <option value="APPLIED">🚀 {t('status.APPLIED')}</option>
+                      <option value="SAVED">📌 {t('status.SAVED')}</option>
                     </select>
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 mb-1">
-                      特别关注
+                      {t('quickAdd.starredLabel')}
                     </label>
                     <button
                       type="button"
@@ -588,7 +604,7 @@ export default function QuickAddModal({
                       }`}
                     >
                       <Star className={`w-3.5 h-3.5 ${editStarred ? 'text-amber-400 fill-amber-400' : 'text-slate-500'}`} />
-                      <span>{editStarred ? '⭐ 已设为特别关注' : '设为特别关注'}</span>
+                      <span>{editStarred ? t('quickAdd.starredYes') : t('quickAdd.starredNo')}</span>
                     </button>
                   </div>
                 </div>
@@ -607,12 +623,12 @@ export default function QuickAddModal({
                   {savingRecord ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      正在保存...
+                      {t('quickAdd.saving')}
                     </>
                   ) : (
                     <>
                       <CheckCircle2 className="w-4 h-4" />
-                      确认并加入投递看板
+                      {t('quickAdd.saveBtn')}
                     </>
                   )}
                 </button>

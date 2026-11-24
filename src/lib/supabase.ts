@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
+export const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+export const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -9,6 +9,7 @@ export type JobRating = 'C' | 'B' | 'A-' | 'A' | 'A+' | 'S' | 'S+';
 
 export interface ApplicationRecord {
   id: string;
+  user_id?: string | null;
   applied_at: string;
   posted_at?: string | null;
   postedAt?: string | null;
@@ -41,4 +42,3 @@ export interface DuplicateCheckResult {
   similarity?: number;
   matchedApplication: ApplicationRecord;
 }
-

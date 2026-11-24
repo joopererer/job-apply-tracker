@@ -16,8 +16,9 @@ import {
   Tag,
   X,
 } from 'lucide-react';
-import { ApplicationRecord } from '@/lib/supabase';
+import { ApplicationRecord, supabase } from '@/lib/supabase';
 import { ContractType, JobLanguage, JobPlatform, WorkMode } from '@/lib/scraper';
+import { useI18n } from '@/lib/i18n/I18nProvider';
 
 interface ApplicationEditModalProps {
   isOpen: boolean;
@@ -36,24 +37,24 @@ const PLATFORMS: JobPlatform[] = [
   'OTHER',
 ];
 
-const STATUSES: { value: string; label: string }[] = [
-  { value: 'SAVED', label: '📌 未投递 (Saved)' },
-  { value: 'APPLIED', label: '🚀 已投递 (Applied)' },
-  { value: 'HR_CALL', label: '📞 HR 沟通中 (HR Call)' },
-  { value: 'TECH_INTERVIEW', label: '💻 技术面试 (Tech Interview)' },
-  { value: 'OFFER', label: '🎉 已获 Offer (Offer)' },
-  { value: 'REJECTED', label: '❌ 未通过 (Rejected)' },
-];
+const STATUS_KEYS = [
+  'SAVED',
+  'APPLIED',
+  'HR_CALL',
+  'TECH_INTERVIEW',
+  'OFFER',
+  'REJECTED',
+] as const;
 
-const RATINGS = [
-  { value: 'S+', label: '🔥 S+ (顶级心仪/必投)' },
-  { value: 'S', label: '💎 S (重点目标)' },
-  { value: 'A+', label: '🌟 A+ (优质岗位)' },
-  { value: 'A', label: '✨ A (良好机会)' },
-  { value: 'A-', label: '⭐ A- (合格/可投)' },
-  { value: 'B', label: '🎯 B (基准/海投默认)' },
-  { value: 'C', label: '💤 C (保底/观望)' },
-];
+const RATING_KEYS = [
+  { value: 'S+', key: 'rating.SPlus' },
+  { value: 'S', key: 'rating.S' },
+  { value: 'A+', key: 'rating.APlus' },
+  { value: 'A', key: 'rating.A' },
+  { value: 'A-', key: 'rating.AMinus' },
+  { value: 'B', key: 'rating.B' },
+  { value: 'C', key: 'rating.C' },
+] as const;
 
 export default function ApplicationEditModal({
   isOpen,
@@ -61,6 +62,7 @@ export default function ApplicationEditModal({
   job,
   onSaved,
 }: ApplicationEditModalProps) {
+  const { t } = useI18n();
   const [companyRaw, setCompanyRaw] = useState('');
   const [titleRaw, setTitleRaw] = useState('');
   const [contractType, setContractType] = useState<ContractType>('CDI');
@@ -131,7 +133,7 @@ export default function ApplicationEditModal({
     if (!job?.id) return;
 
     if (!companyRaw.trim() || !titleRaw.trim()) {
-      setError('公司名称和职位名称不能为空！');
+      setError(t('editModal.requiredAlert'));
       return;
     }
 
@@ -160,9 +162,13 @@ export default function ApplicationEditModal({
         jd_content: jdContent,
       };
 
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('/api/applications', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
         body: JSON.stringify(payload),
       });
 
@@ -195,10 +201,10 @@ export default function ApplicationEditModal({
             </div>
             <div>
               <h3 className="text-base sm:text-lg font-bold text-slate-100">
-                编辑投递记录
+                {t('editModal.title')}
               </h3>
               <p className="text-xs text-slate-400">
-                修改职位字段将自动同步更新标准化检索索引
+                {t('editModal.subtitle')}
               </p>
             </div>
           </div>
@@ -224,7 +230,7 @@ export default function ApplicationEditModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
-                公司名称 <span className="text-rose-400">*</span>
+                {t('editModal.company')} <span className="text-rose-400">*</span>
               </label>
               <input
                 type="text"
@@ -237,7 +243,7 @@ export default function ApplicationEditModal({
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
-                职位名称 <span className="text-rose-400">*</span>
+                {t('editModal.titleField')} <span className="text-rose-400">*</span>
               </label>
               <input
                 type="text"
@@ -254,16 +260,16 @@ export default function ApplicationEditModal({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
-                当前状态
+                {t('editModal.status')}
               </label>
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
                 className="w-full px-2.5 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-semibold"
               >
-                {STATUSES.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
+                {STATUS_KEYS.map((key) => (
+                  <option key={key} value={key}>
+                    {t(`status.${key}`)}
                   </option>
                 ))}
               </select>
@@ -271,16 +277,16 @@ export default function ApplicationEditModal({
 
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
-                岗位评级
+                {t('editModal.rating')}
               </label>
               <select
                 value={rating}
                 onChange={(e) => setRating(e.target.value)}
                 className="w-full px-2.5 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-slate-200 focus:outline-none focus:border-blue-500"
               >
-                {RATINGS.map((r) => (
+                {RATING_KEYS.map((r) => (
                   <option key={r.value} value={r.value}>
-                    {r.label}
+                    {t(r.key)}
                   </option>
                 ))}
               </select>
@@ -288,7 +294,7 @@ export default function ApplicationEditModal({
 
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
-                特别关注
+                {t('editModal.starred')}
               </label>
               <button
                 type="button"
@@ -300,13 +306,13 @@ export default function ApplicationEditModal({
                 }`}
               >
                 <span>⭐</span>
-                <span>{isStarred ? '已星标关注' : '普通岗位'}</span>
+                <span>{isStarred ? t('editModal.starredYes') : t('editModal.starredNo')}</span>
               </button>
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
-                来源平台
+                {t('editModal.platform')}
               </label>
               <select
                 value={platform}
@@ -326,49 +332,49 @@ export default function ApplicationEditModal({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
-                合同类型
+                {t('editModal.contractType')}
               </label>
               <select
                 value={contractType}
                 onChange={(e) => setContractType(e.target.value as ContractType)}
                 className="w-full px-2.5 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500"
               >
-                <option value="CDI">CDI (长期合同)</option>
-                <option value="CDD">CDD (定期合同)</option>
-                <option value="FREELANCE">FREELANCE (自由职业)</option>
-                <option value="STAGE">STAGE (实习)</option>
-                <option value="ALTERNANCE">ALTERNANCE (学徒/半工半读)</option>
-                <option value="UNKNOWN">UNKNOWN (待定/未知)</option>
+                <option value="CDI">CDI</option>
+                <option value="CDD">CDD</option>
+                <option value="FREELANCE">FREELANCE</option>
+                <option value="STAGE">STAGE</option>
+                <option value="ALTERNANCE">ALTERNANCE</option>
+                <option value="UNKNOWN">UNKNOWN</option>
               </select>
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
-                办公方式
+                {t('editModal.workMode')}
               </label>
               <select
                 value={workMode}
                 onChange={(e) => setWorkMode(e.target.value as WorkMode | '')}
                 className="w-full px-2.5 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500"
               >
-                <option value="">未注明 (不限)</option>
-                <option value="ONSITE">🏢 现场办公</option>
-                <option value="HYBRID">🔄 混合办公</option>
-                <option value="REMOTE">🏠 远程</option>
+                <option value="">{t('editModal.workModeNotSpecified')}</option>
+                <option value="ONSITE">🏢 {t('workMode.ONSITE')}</option>
+                <option value="HYBRID">🔄 {t('workMode.HYBRID')}</option>
+                <option value="REMOTE">🏠 {t('workMode.REMOTE')}</option>
               </select>
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
-                语言
+                {t('editModal.language')}
               </label>
               <select
                 value={language}
                 onChange={(e) => setLanguage(e.target.value as JobLanguage)}
                 className="w-full px-2.5 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500"
               >
-                <option value="FR">🇫🇷 法语 (FR)</option>
-                <option value="EN">🇬🇧 英语 (EN)</option>
+                <option value="FR">🇫🇷 FR</option>
+                <option value="EN">🇬🇧 EN</option>
               </select>
             </div>
           </div>
@@ -377,7 +383,7 @@ export default function ApplicationEditModal({
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
-                工作地点
+                {t('editModal.location')}
               </label>
               <input
                 type="text"
@@ -389,7 +395,7 @@ export default function ApplicationEditModal({
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
-                薪资范围
+                {t('editModal.salary')}
               </label>
               <input
                 type="text"
@@ -401,7 +407,7 @@ export default function ApplicationEditModal({
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
-                发布日期
+                {t('editModal.postedDate')}
               </label>
               <input
                 type="text"
@@ -413,7 +419,7 @@ export default function ApplicationEditModal({
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
-                投递日期
+                {t('editModal.appliedDate')}
               </label>
               <input
                 type="date"
@@ -428,7 +434,7 @@ export default function ApplicationEditModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
-                原始职位链接 (Clean URL)
+                {t('editModal.cleanUrl')}
               </label>
               <input
                 type="url"
@@ -440,7 +446,7 @@ export default function ApplicationEditModal({
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
-                HR 联系方式 (用于来电反查)
+                {t('editModal.hrContact')}
               </label>
               <input
                 type="text"
@@ -455,13 +461,13 @@ export default function ApplicationEditModal({
           {/* 备注笔记 */}
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1">
-              备注笔记
+              {t('editModal.notes')}
             </label>
             <input
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="如: 内推员工、投递用简历版本、HR要求等..."
+              placeholder={t('editModal.notesPlaceholder')}
               className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-blue-500"
             />
           </div>
@@ -469,9 +475,9 @@ export default function ApplicationEditModal({
           {/* JD 正文编辑 */}
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
-              <span>岗位 JD 正文要求 (保存时将自动执行结构化清洗)</span>
+              <span>{t('editModal.jdContent')}</span>
               <span className="text-[11px] text-slate-500">
-                {jdContent.length} 字符
+                {t('editModal.charCount', { count: jdContent.length })}
               </span>
             </label>
             <textarea
@@ -491,7 +497,7 @@ export default function ApplicationEditModal({
               disabled={saving}
               className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition"
             >
-              取消
+              {t('editModal.cancel')}
             </button>
             <button
               type="submit"
@@ -501,12 +507,12 @@ export default function ApplicationEditModal({
               {saving ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  保存中...
+                  {t('editModal.saving')}
                 </>
               ) : (
                 <>
                   <Save className="w-4 h-4" />
-                  保存修改
+                  {t('editModal.save')}
                 </>
               )}
             </button>

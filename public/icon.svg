@@ -1,29 +1,42 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#1d4ed8" />
-      <stop offset="100%" stop-color="#0284c7" />
+    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e3a8a" />
+      <stop offset="50%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#38bdf8" />
     </linearGradient>
-    <linearGradient id="flag-fr" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#002395" />
-      <stop offset="33%" stop-color="#002395" />
-      <stop offset="33%" stop-color="#ffffff" />
-      <stop offset="66%" stop-color="#ffffff" />
-      <stop offset="66%" stop-color="#ed2939" />
-      <stop offset="100%" stop-color="#ed2939" />
-    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#0f172a" flood-opacity="0.5" />
+    </filter>
   </defs>
-  <!-- Background rounded rect -->
-  <rect width="512" height="512" rx="112" fill="#0b1329" />
+
+  <!-- Rounded rect background -->
+  <rect width="512" height="512" rx="112" fill="url(#bg-grad)" />
+
   <!-- Radar circles -->
-  <circle cx="256" cy="256" r="180" fill="none" stroke="#1e293b" stroke-width="8" />
-  <circle cx="256" cy="256" r="120" fill="none" stroke="#2563eb" stroke-width="4" stroke-opacity="0.4" />
-  <circle cx="256" cy="256" r="60" fill="none" stroke="#38bdf8" stroke-width="3" stroke-opacity="0.6" />
-  <!-- Briefcase icon in center -->
-  <rect x="156" y="196" width="200" height="150" rx="24" fill="url(#grad)" />
-  <path d="M206 196 V166 C206 150 218 138 234 138 H278 C294 138 306 150 306 166 V196" fill="none" stroke="#60a5fa" stroke-width="16" stroke-linecap="round" />
-  <!-- French flag mini badge at bottom right -->
-  <g transform="translate(320, 310)">
-    <rect width="64" height="42" rx="8" fill="url(#flag-fr)" stroke="#ffffff" stroke-width="3" />
-  </g>
+  <circle cx="256" cy="256" r="215" fill="none" stroke="#ffffff" stroke-width="4" stroke-opacity="0.12" />
+  <circle cx="256" cy="256" r="160" fill="none" stroke="#ffffff" stroke-width="4" stroke-opacity="0.18" />
+  <circle cx="256" cy="256" r="110" fill="none" stroke="#38bdf8" stroke-width="6" stroke-opacity="0.30" />
+  <line x1="256" y1="256" x2="430" y2="135" stroke="#38bdf8" stroke-width="5" stroke-opacity="0.35" stroke-linecap="round" />
+
+  <!-- Briefcase Silhouette -->
+  <!-- Handle -->
+  <path d="M 200 205 V 155 C 200 138 214 125 232 125 H 280 C 298 125 312 138 312 155 V 205" 
+        fill="none" stroke="#ffffff" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- Briefcase Body -->
+  <rect x="108" y="205" width="296" height="225" rx="32" fill="#0a132c" stroke="#ffffff" stroke-width="12" filter="url(#shadow)" />
+
+  <!-- Modern FR text -->
+  <!-- F -->
+  <path d="M 168 255 V 380 M 168 255 H 230 M 168 312 H 215" 
+        stroke="#ffffff" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  <!-- R -->
+  <path d="M 260 255 V 380 M 260 255 H 304 C 322 255 334 266 334 284 C 334 302 322 314 304 314 H 260 M 296 314 L 332 380" 
+        stroke="#ffffff" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+
+  <!-- Verification Checkmark Badge -->
+  <circle cx="390" cy="205" r="48" fill="#10b981" stroke="#ffffff" stroke-width="8" filter="url(#shadow)" />
+  <path d="M 368 205 L 384 221 L 414 189" 
+        stroke="#ffffff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" fill="none" />
 </svg>

@@ -362,6 +362,31 @@
       color: #fca5a5;
       margin-bottom: 12px;
     }
+
+    .user-status-btn {
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid #334155;
+      color: #93c5fd;
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.2s ease;
+      outline: none;
+      max-width: 140px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .user-status-btn:hover {
+      background: rgba(59, 130, 246, 0.2);
+      border-color: #3b82f6;
+    }
   </style>
 </head>
 
@@ -371,14 +396,58 @@
       <div class="brand-icon">FR</div>
       <div class="brand-title">FR Job Tracker</div>
     </div>
-    <div style="display: flex; align-items: center; gap: 6px;">
-      <span class="status-dot"></span>
-      <span style="font-size: 11px; color: #94a3b8;" id="env-badge-text">本地服务</span>
+    <div style="display: flex; align-items: center; gap: 6px; position: relative;">
+      <select id="select-lang" class="user-status-btn" style="cursor: pointer; padding: 2px 4px; max-width: 90px;" title="Language / 语言 / Langue">
+        <option value="zh">🇨🇳 中文</option>
+        <option value="fr">🇫🇷 FR</option>
+        <option value="en">🇬🇧 EN</option>
+      </select>
+      <button id="btn-user-status" class="user-status-btn" title="账号与登录状态">
+        <span id="user-status-text">👤 登录账号</span>
+      </button>
+      <!-- 用户菜单弹窗 Popover -->
+      <div id="user-menu-popover" style="display: none; position: absolute; top: 30px; right: 0; z-index: 50; width: 190px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+        <div style="font-size: 11px; color: #94a3b8; margin-bottom: 2px;">当前已登录账号</div>
+        <div id="popover-user-email" style="font-size: 12px; font-weight: 700; color: #f8fafc; margin-bottom: 8px; word-break: break-all;"></div>
+        <button id="btn-go-dashboard" class="btn btn-secondary" style="padding: 5px 8px; font-size: 11px; margin-top: 0; margin-bottom: 6px; width: 100%;">📊 打开求职看板</button>
+        <button id="btn-logout" class="btn btn-secondary" style="padding: 5px 8px; font-size: 11px; margin-top: 0; width: 100%; border-color: #ef4444; color: #fca5a5;">退出登录</button>
+      </div>
     </div>
   </div>
 
   <!-- 中间内容区域（使用 flex: 1 自动撑高） -->
   <div class="content-container">
+    <!-- Login View (内置登录面板) -->
+    <div id="login-view" style="display: none;">
+      <div class="card" style="padding: 16px; margin-top: 6px;">
+        <div style="font-size: 14px; font-weight: 800; color: #ffffff; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+          <span>🔐</span>
+          <span>登录求职追踪账号</span>
+        </div>
+        <p style="font-size: 11px; color: #94a3b8; margin-bottom: 12px; line-height: 1.4;">
+          登录后投递数据将安全隔离同步至您的专属求职看板。
+        </p>
+
+        <div class="field-group">
+          <label class="field-label">账号邮箱</label>
+          <input type="email" class="input-text" id="login-email" placeholder="name@example.com" />
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">登录密码</label>
+          <input type="password" class="input-text" id="login-password" placeholder="••••••••" />
+        </div>
+
+        <div id="login-error-msg" class="error-box" style="display: none; margin-bottom: 10px; padding: 6px 8px; font-size: 11px;"></div>
+
+        <button class="btn btn-primary" id="btn-submit-login" style="margin-top: 6px;">登录并继续</button>
+
+        <div style="margin-top: 12px; text-align: center; font-size: 11px; color: #64748b;">
+          还没有账号？
+          <a href="#" id="link-web-register" style="color: #60a5fa; text-decoration: none; font-weight: 600;">去网页端注册 →</a>
+        </div>
+      </div>
+    </div>
     <!-- Loading State -->
     <div id="loading" class="loading-box">
       <div class="spinner"></div>

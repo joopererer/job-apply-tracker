@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
 import { normalizeCompany, normalizeTitle, cleanAndFormatJd } from '@/lib/scraper';
+import { authenticateRequest, unauthorizedResponse } from '@/lib/auth';
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -8,22 +8,28 @@ interface RouteContext {
 
 /**
  * GET /api/applications/[id]
- * 获取单个职位投递记录
+ * 获取单个属于当前用户的职位投递记录
  */
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   context: RouteContext
 ) {
   try {
+    const auth = await authenticateRequest(request);
+    if (!auth) {
+      return unauthorizedResponse();
+    }
+
     const { id } = await context.params;
     if (!id) {
       return NextResponse.json({ error: 'Missing application id' }, { status: 400 });
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await auth.client
       .from('applications')
       .select('*')
       .eq('id', id)
+      .eq('user_id', auth.user.id)
       .single();
 
     if (error) {
@@ -41,13 +47,18 @@ export async function GET(
 
 /**
  * PATCH /api/applications/[id]
- * 更新指定职位记录字段 (支持乐观更新调用的 status, is_starred, rating, 等)
+ * 更新指定属于当前用户的职位记录字段
  */
 export async function PATCH(
   request: NextRequest,
   context: RouteContext
 ) {
   try {
+    const auth = await authenticateRequest(request);
+    if (!auth) {
+      return unauthorizedResponse();
+    }
+
     const { id } = await context.params;
     if (!id) {
       return NextResponse.json({ error: 'Missing application id' }, { status: 400 });
@@ -58,7 +69,6 @@ export async function PATCH(
       updated_at: new Date().toISOString(),
     };
 
-    // 1. 公司名与职位名标准化
     if (body.company_raw !== undefined || body.companyRaw !== undefined) {
       const cRaw = (body.company_raw ?? body.companyRaw ?? '').trim();
       updates.company_raw = cRaw;
@@ -70,14 +80,12 @@ export async function PATCH(
       updates.title_norm = normalizeTitle(tRaw);
     }
 
-    // 2. 状态、评级、星标
     if (body.status !== undefined) updates.status = body.status;
     if (body.rating !== undefined) updates.rating = body.rating;
     if (body.is_starred !== undefined || body.isStarred !== undefined) {
       updates.is_starred = body.is_starred ?? body.isStarred;
     }
 
-    // 3. 合同类型、工作模式、平台、语言
     if (body.contract_type !== undefined || body.contractType !== undefined) {
       updates.contract_type = body.contract_type ?? body.contractType;
     }
@@ -87,7 +95,6 @@ export async function PATCH(
     if (body.platform !== undefined) updates.platform = body.platform;
     if (body.language !== undefined) updates.language = body.language;
 
-    // 4. 地点、薪资与时间
     if (body.location !== undefined) updates.location = body.location;
     if (body.salary_range !== undefined || body.salaryRange !== undefined) {
       updates.salary_range = body.salary_range ?? body.salaryRange;
@@ -99,13 +106,11 @@ export async function PATCH(
       updates.applied_at = body.applied_at ?? body.appliedAt;
     }
 
-    // 5. 链接与备注
     if (body.clean_url !== undefined || body.cleanUrl !== undefined) {
       updates.clean_url = body.clean_url ?? body.cleanUrl;
     }
     if (body.notes !== undefined) updates.notes = body.notes;
 
-    // 6. HR 联系人
     if (body.hr_contact !== undefined || body.hrContact !== undefined) {
       let hr = body.hr_contact ?? body.hrContact;
       if (typeof hr === 'string') {
@@ -114,30 +119,30 @@ export async function PATCH(
       updates.hr_contact = hr;
     }
 
-    // 7. JD 内容
     if (body.jd_content !== undefined || body.jdContent !== undefined) {
       const jdRaw = body.jd_content ?? body.jdContent ?? '';
       updates.jd_content = cleanAndFormatJd(jdRaw);
     }
 
-    let { data, error } = await supabase
+    let { data, error } = await auth.client
       .from('applications')
       .update(updates)
       .eq('id', id)
+      .eq('user_id', auth.user.id)
       .select()
       .single();
 
-    // 数据库迁移容错处理
     if (error && (error.message?.includes('posted_at') || error.message?.includes('rating') || error.message?.includes('is_starred') || error.message?.includes('work_mode'))) {
       if (error.message?.includes('posted_at')) delete updates.posted_at;
       if (error.message?.includes('rating')) delete updates.rating;
       if (error.message?.includes('is_starred')) delete updates.is_starred;
       if (error.message?.includes('work_mode')) delete updates.work_mode;
 
-      const retry = await supabase
+      const retry = await auth.client
         .from('applications')
         .update(updates)
         .eq('id', id)
+        .eq('user_id', auth.user.id)
         .select()
         .single();
       data = retry.data;
@@ -159,22 +164,28 @@ export async function PATCH(
 
 /**
  * DELETE /api/applications/[id]
- * 删除指定职位记录
+ * 删除指定属于当前用户的职位记录
  */
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   context: RouteContext
 ) {
   try {
+    const auth = await authenticateRequest(request);
+    if (!auth) {
+      return unauthorizedResponse();
+    }
+
     const { id } = await context.params;
     if (!id) {
       return NextResponse.json({ error: 'Missing application id' }, { status: 400 });
     }
 
-    const { error } = await supabase
+    const { error } = await auth.client
       .from('applications')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('user_id', auth.user.id);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -199,4 +210,3 @@ export async function OPTIONS() {
     },
   });
 }
-

@@ -1,28 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
 import { normalizeCompany, normalizeTitle, cleanAndFormatJd } from '@/lib/scraper';
+import { authenticateRequest, unauthorizedResponse } from '@/lib/auth';
 
 /**
  * GET /api/applications
- * 支持按 q (全文反查公司名、职位名、JD 内容、HR 联系方式、备注) 与 status 过滤
- * 结果按 applied_at 倒序排列
+ * 仅返回当前登录用户的投递记录
+ * 支持按 q 全文反查与 status 精确过滤，按 applied_at 倒序排列
  */
 export async function GET(request: NextRequest) {
   try {
+    const auth = await authenticateRequest(request);
+    if (!auth) {
+      return unauthorizedResponse();
+    }
+
+    const { user, client } = auth;
     const { searchParams } = new URL(request.url);
     const q = searchParams.get('q')?.trim();
     const status = searchParams.get('status')?.trim();
 
-    let query = supabase.from('applications').select('*');
+    // 严格绑定当前登录用户 user_id
+    let query = client.from('applications').select('*').eq('user_id', user.id);
 
     // 1. 状态精确过滤
     if (status) {
       query = query.eq('status', status);
     }
 
-    // 2. 关键词全文检索 (针对 HR 突然来电等场景的反向急救检索)
+    // 2. 关键词全文检索
     if (q) {
-      // 过滤 PostgREST .or() 语法保留字符
       const sanitized = q.replace(/[,()]/g, ' ').trim();
       if (sanitized) {
         const filter = [
@@ -68,10 +74,16 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/applications
- * 保存确认投递的职位记录 (兼容驼峰与下划线字段格式)
+ * 保存确认投递的职位记录，自动绑定 user_id: user.id
  */
 export async function POST(request: NextRequest) {
   try {
+    const auth = await authenticateRequest(request);
+    if (!auth) {
+      return unauthorizedResponse();
+    }
+
+    const { user, client } = auth;
     const body = await request.json().catch(() => ({}));
 
     const companyRaw = body.company_raw || body.companyRaw || '';
@@ -89,7 +101,6 @@ export async function POST(request: NextRequest) {
     const titleNorm =
       body.title_norm || body.titleNorm || normalizeTitle(titleRaw);
 
-    // 处理 HR 联系方式 (支持直接对象或字符串包装)
     let hrContact = body.hr_contact || body.hrContact || null;
     if (typeof hrContact === 'string') {
       hrContact = { raw: hrContact, phone: hrContact };
@@ -100,6 +111,7 @@ export async function POST(request: NextRequest) {
     const isStarred = body.is_starred ?? body.isStarred ?? false;
 
     const newRecord: Record<string, any> = {
+      user_id: user.id,
       platform: body.platform || 'OTHER',
       external_job_id: body.external_job_id ?? body.externalJobId ?? null,
       clean_url: body.clean_url || body.cleanUrl || '',
@@ -124,58 +136,40 @@ export async function POST(request: NextRequest) {
       updated_at: new Date().toISOString(),
     };
 
-    let { data, error } = await supabase
+    let { data, error } = await client
       .from('applications')
       .insert(newRecord)
       .select()
       .single();
 
-    // 容错兜底：若数据库表尚未执行 work_mode 迁移列，剥离该字段后重试插入
-    if (error && error.message && error.message.includes('work_mode')) {
-      delete newRecord.work_mode;
-      const retry = await supabase
-        .from('applications')
-        .insert(newRecord)
-        .select()
-        .single();
-      data = retry.data;
-      error = retry.error;
-    }
-
-    // 容错：如果 Supabase 表尚未添加 posted_at 字段，自动移除并降级保存
-    if (error && error.message?.includes('posted_at')) {
-      delete newRecord.posted_at;
-      const retry = await supabase
-        .from('applications')
-        .insert(newRecord)
-        .select()
-        .single();
-      data = retry.data;
-      error = retry.error;
-    }
-
-    // 容错：如果 Supabase 表尚未添加 rating 字段，自动移除并降级保存
-    if (error && error.message?.includes('rating')) {
-      delete newRecord.rating;
-      const retry = await supabase
-        .from('applications')
-        .insert(newRecord)
-        .select()
-        .single();
-      data = retry.data;
-      error = retry.error;
-    }
-
-    // 容错：如果 Supabase 表尚未添加 is_starred 字段，自动移除并降级保存
-    if (error && error.message?.includes('is_starred')) {
-      delete newRecord.is_starred;
-      const retry = await supabase
-        .from('applications')
-        .insert(newRecord)
-        .select()
-        .single();
-      data = retry.data;
-      error = retry.error;
+    // 容错处理：若数据库表尚未执行某些列迁移
+    if (error && error.message) {
+      let needsRetry = false;
+      if (error.message.includes('work_mode')) {
+        delete newRecord.work_mode;
+        needsRetry = true;
+      }
+      if (error.message.includes('posted_at')) {
+        delete newRecord.posted_at;
+        needsRetry = true;
+      }
+      if (error.message.includes('rating')) {
+        delete newRecord.rating;
+        needsRetry = true;
+      }
+      if (error.message.includes('is_starred')) {
+        delete newRecord.is_starred;
+        needsRetry = true;
+      }
+      if (needsRetry) {
+        const retry = await client
+          .from('applications')
+          .insert(newRecord)
+          .select()
+          .single();
+        data = retry.data;
+        error = retry.error;
+      }
     }
 
     if (error) {
@@ -199,10 +193,16 @@ export async function POST(request: NextRequest) {
 
 /**
  * PATCH /api/applications
- * 完整更新职位记录的所有字段（公司、职位、合同、地点、薪资、状态、备注、JD等）
+ * 更新属于当前用户的职位记录
  */
 export async function PATCH(request: NextRequest) {
   try {
+    const auth = await authenticateRequest(request);
+    if (!auth) {
+      return unauthorizedResponse();
+    }
+
+    const { user, client } = auth;
     const body = await request.json().catch(() => ({}));
     const { id } = body;
 
@@ -217,21 +217,17 @@ export async function PATCH(request: NextRequest) {
       updated_at: new Date().toISOString(),
     };
 
-    // 1. 公司名与标准化
     if (body.company_raw !== undefined || body.companyRaw !== undefined) {
       const cRaw = (body.company_raw ?? body.companyRaw ?? '').trim();
       updates.company_raw = cRaw;
       updates.company_norm = normalizeCompany(cRaw);
     }
-
-    // 2. 职位名与标准化
     if (body.title_raw !== undefined || body.titleRaw !== undefined) {
       const tRaw = (body.title_raw ?? body.titleRaw ?? '').trim();
       updates.title_raw = tRaw;
       updates.title_norm = normalizeTitle(tRaw);
     }
 
-    // 3. 合同类型、工作模式与平台
     if (body.contract_type !== undefined || body.contractType !== undefined) {
       updates.contract_type = body.contract_type ?? body.contractType;
     }
@@ -240,14 +236,10 @@ export async function PATCH(request: NextRequest) {
     }
     if (body.platform !== undefined) updates.platform = body.platform;
     if (body.language !== undefined) updates.language = body.language;
-
-    // 4. 地点与薪资
     if (body.location !== undefined) updates.location = body.location;
     if (body.salary_range !== undefined || body.salaryRange !== undefined) {
       updates.salary_range = body.salary_range ?? body.salaryRange;
     }
-
-    // 5. 状态、评级、特别关注与时间
     if (body.status !== undefined) updates.status = body.status;
     if (body.rating !== undefined) updates.rating = body.rating;
     if (body.is_starred !== undefined || body.isStarred !== undefined) {
@@ -259,14 +251,11 @@ export async function PATCH(request: NextRequest) {
     if (body.applied_at !== undefined || body.appliedAt !== undefined) {
       updates.applied_at = body.applied_at ?? body.appliedAt;
     }
-
-    // 6. 链接与备注
     if (body.clean_url !== undefined || body.cleanUrl !== undefined) {
       updates.clean_url = body.clean_url ?? body.cleanUrl;
     }
     if (body.notes !== undefined) updates.notes = body.notes;
 
-    // 7. 更新 HR 联系方式
     if (body.hr_contact !== undefined || body.hrContact !== undefined) {
       let hr = body.hr_contact ?? body.hrContact;
       if (typeof hr === 'string') {
@@ -275,27 +264,31 @@ export async function PATCH(request: NextRequest) {
       updates.hr_contact = hr;
     }
 
-    // 8. JD 正文内容格式化
     if (body.jd_content !== undefined || body.jdContent !== undefined) {
       const jdRaw = body.jd_content ?? body.jdContent ?? '';
       updates.jd_content = cleanAndFormatJd(jdRaw);
     }
 
-    let { data, error } = await supabase
+    // 严格限制只能更新当前用户的记录
+    let { data, error } = await client
       .from('applications')
       .update(updates)
       .eq('id', id)
+      .eq('user_id', user.id)
       .select()
       .single();
 
-    if (error && (error.message?.includes('posted_at') || error.message?.includes('rating') || error.message?.includes('is_starred'))) {
+    if (error && (error.message?.includes('posted_at') || error.message?.includes('rating') || error.message?.includes('is_starred') || error.message?.includes('work_mode'))) {
       if (error.message?.includes('posted_at')) delete updates.posted_at;
       if (error.message?.includes('rating')) delete updates.rating;
       if (error.message?.includes('is_starred')) delete updates.is_starred;
-      const retry = await supabase
+      if (error.message?.includes('work_mode')) delete updates.work_mode;
+
+      const retry = await client
         .from('applications')
         .update(updates)
         .eq('id', id)
+        .eq('user_id', user.id)
         .select()
         .single();
       data = retry.data;
@@ -322,10 +315,16 @@ export async function PATCH(request: NextRequest) {
 
 /**
  * DELETE /api/applications
- * 删除指定的求职记录 (支持 query param ?id=xxx 或 body { id })
+ * 删除指定属于当前用户的求职记录
  */
 export async function DELETE(request: NextRequest) {
   try {
+    const auth = await authenticateRequest(request);
+    if (!auth) {
+      return unauthorizedResponse();
+    }
+
+    const { user, client } = auth;
     const { searchParams } = new URL(request.url);
     let id = searchParams.get('id');
 
@@ -341,10 +340,11 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const { error } = await supabase
+    const { error } = await client
       .from('applications')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('user_id', user.id);
 
     if (error) {
       return NextResponse.json(
@@ -375,4 +375,3 @@ export async function OPTIONS() {
     },
   });
 }
-
