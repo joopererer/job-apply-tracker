@@ -1,45 +1,38 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import Link from 'next/link';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
-  AlertTriangle,
   Building2,
   Calendar,
   Check,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
-  Clipboard,
   Clock,
   Copy,
   ExternalLink,
   Filter,
   Flame,
-  Globe,
+  LayoutGrid,
+  LayoutList,
   Loader2,
   MapPin,
   Maximize2,
-  MessageSquare,
   Pencil,
   Phone,
   PhoneCall,
   Plus,
-  RefreshCw,
   Search,
-  Share2,
-  ShieldAlert,
   Sparkles,
   Star,
-  Tag,
   Trash2,
   X,
-  XCircle,
 } from 'lucide-react';
-import { ScrapedJob, ContractType, WorkMode } from '@/lib/scraper';
-import { ApplicationRecord, DuplicateCheckResult } from '@/lib/supabase';
+import { ApplicationRecord } from '@/lib/supabase';
 import JdViewerModal, { FormattedJdRenderer } from '@/components/JdViewerModal';
 import ApplicationEditModal from '@/components/ApplicationEditModal';
+import QuickAddModal from '@/components/QuickAddModal';
+import JobDetailModal from '@/components/JobDetailModal';
 
 // 格式化投递相对时间
 function formatDaysAgo(isoDate: string): string {
@@ -51,6 +44,15 @@ function formatDaysAgo(isoDate: string): string {
   if (diffDays < 7) return `${diffDays} 天前`;
   if (diffDays < 30) return `${Math.floor(diffDays / 7)} 周前`;
   return `${Math.floor(diffDays / 30)} 个月前`;
+}
+
+// 格式化发布时间 (精确到年月日，去除 ISO 时间后缀如 T00:00:00+00:00)
+function formatPostedDate(dateStr?: string | null): string {
+  if (!dateStr) return '';
+  const match = dateStr.match(/^\d{4}-\d{2}-\d{2}/);
+  if (match) return match[0];
+  if (dateStr.includes('T')) return dateStr.split('T')[0];
+  return dateStr;
 }
 
 // 判断是否为投递超过 2 个月（约 60 天）
@@ -71,58 +73,60 @@ type TabStatus =
   | 'OFFER'
   | 'REJECTED';
 
-// 状态视觉配置（参考 Excel 配色定义：已投递鲜绿、HR沟通浅紫、技术面试橙色、Offer饱满绿、未通过灰黑）
-const STATUS_LABELS: Record<TabStatus, { label: string; color: string; badge: string }> = {
-  ALL: { label: '全部岗位', color: 'bg-slate-800 text-slate-300', badge: 'bg-slate-800' },
-  SAVED: { label: '📌 未投递', color: 'bg-slate-800 text-slate-300 border-slate-700', badge: 'bg-slate-700' },
-  APPLIED: { label: '🚀 已投递', color: 'bg-emerald-950/90 text-emerald-300 border-emerald-700/70', badge: 'bg-emerald-600' },
-  HR_CALL: { label: '📞 HR 沟通', color: 'bg-purple-950/90 text-purple-300 border-purple-700/70', badge: 'bg-purple-600' },
-  TECH_INTERVIEW: { label: '💻 技术面试', color: 'bg-amber-950/90 text-amber-200 border-amber-600/70', badge: 'bg-amber-500' },
-  OFFER: { label: '🎉 已获 Offer', color: 'bg-emerald-700 text-emerald-100 border-emerald-400 font-extrabold shadow-sm', badge: 'bg-emerald-500' },
-  REJECTED: { label: '❌ 未通过', color: 'bg-zinc-800/90 text-zinc-400 border-zinc-700', badge: 'bg-zinc-700' },
+// 状态视觉配置
+const STATUS_LABELS: Record<TabStatus, { label: string; color: string; badge: string; icon: string }> = {
+  ALL: { label: '全部岗位', color: 'bg-slate-800 text-slate-300', badge: 'bg-slate-800', icon: '📋' },
+  SAVED: { label: '未投递', color: 'bg-slate-800 text-slate-300 border-slate-700', badge: 'bg-slate-700', icon: '📌' },
+  APPLIED: { label: '已投递', color: 'bg-emerald-950/90 text-emerald-300 border-emerald-700/70', badge: 'bg-emerald-600', icon: '🚀' },
+  HR_CALL: { label: 'HR 沟通', color: 'bg-purple-950/90 text-purple-300 border-purple-700/70', badge: 'bg-purple-600', icon: '📞' },
+  TECH_INTERVIEW: { label: '技术面试', color: 'bg-amber-950/90 text-amber-200 border-amber-600/70', badge: 'bg-amber-500', icon: '💻' },
+  OFFER: { label: '已获 Offer', color: 'bg-emerald-700 text-emerald-100 border-emerald-400 font-extrabold shadow-sm', badge: 'bg-emerald-500', icon: '🎉' },
+  REJECTED: { label: '未通过', color: 'bg-zinc-800/90 text-zinc-400 border-zinc-700', badge: 'bg-zinc-700', icon: '❌' },
 };
 
-// 卡片背景与边框色彩计算（依据 Excel 状态分类、2 个月无回复自动判定与水印盖章）
+const STATUS_SELECT_OPTIONS: { key: TabStatus; label: string; icon: string }[] = [
+  { key: 'SAVED', label: '未投递', icon: '📌' },
+  { key: 'APPLIED', label: '已投递', icon: '🚀' },
+  { key: 'HR_CALL', label: 'HR 沟通', icon: '📞' },
+  { key: 'TECH_INTERVIEW', label: '技术面试', icon: '💻' },
+  { key: 'OFFER', label: '已获 Offer', icon: '🎉' },
+  { key: 'REJECTED', label: '未通过', icon: '❌' },
+];
+
+// 卡片背景与边框色彩计算
 function getCardStyle(status: string, appliedAt: string | null | undefined, isStarred: boolean) {
   const overTwoMonths = status === 'APPLIED' && isOverTwoMonths(appliedAt);
 
-  let bgStyle = 'bg-slate-900 hover:bg-slate-850';
-  let borderStyle = 'border-slate-800 hover:border-slate-700';
+  let bgStyle = 'bg-slate-900/95 hover:bg-slate-850';
+  let borderStyle = 'border-slate-800/90 hover:border-slate-700';
   let stampType: 'SUCCESS' | 'FAILED' | null = null;
 
   if (overTwoMonths) {
-    // 超过 2 个月无回复的已投递：浅红色
     bgStyle = 'bg-rose-950/30 hover:bg-rose-950/45';
     borderStyle = 'border-rose-900/50 hover:border-rose-700/70';
   } else if (status === 'APPLIED') {
-    // 已投递：更鲜明低透明度的浅绿色
-    bgStyle = 'bg-emerald-950/40 hover:bg-emerald-950/55';
+    bgStyle = 'bg-emerald-950/35 hover:bg-emerald-950/50';
     borderStyle = 'border-emerald-700/50 hover:border-emerald-600/70';
   } else if (status === 'HR_CALL') {
-    // HR 沟通：浅紫色
     bgStyle = 'bg-purple-950/35 hover:bg-purple-950/50';
     borderStyle = 'border-purple-800/50 hover:border-purple-600/70';
   } else if (status === 'TECH_INTERVIEW') {
-    // 技术面试：更深、低透明度的高辨识浅橙色
     bgStyle = 'bg-amber-950/40 hover:bg-amber-950/55';
     borderStyle = 'border-amber-700/50 hover:border-amber-600/70';
   } else if (status === 'OFFER') {
-    // 已获 Offer：更饱满的绿色，带 Success 盖章水印
     bgStyle = 'bg-emerald-900/45 hover:bg-emerald-900/60';
     borderStyle = 'border-emerald-500/80 hover:border-emerald-400 shadow-xl shadow-emerald-500/20';
     stampType = 'SUCCESS';
   } else if (status === 'REJECTED') {
-    // 未通过：深黑灰色调，带 Failed 盖章水印
     bgStyle = 'bg-[#0b0e14]/90 hover:bg-[#0f131a]/95 opacity-75 hover:opacity-100';
     borderStyle = 'border-zinc-800 hover:border-zinc-700';
     stampType = 'FAILED';
   } else if (status === 'SAVED') {
-    // 未投递：中性冷灰
     bgStyle = 'bg-slate-900/90 hover:bg-slate-850';
     borderStyle = 'border-slate-700/70 hover:border-slate-600';
   }
 
-  // 特别关注维持金色高亮描边与发光
+  // 特别关注金色高亮描边与发光
   if (isStarred) {
     borderStyle = 'border-amber-400/90 shadow-lg shadow-amber-500/15 ring-1 ring-amber-400/40';
   }
@@ -170,9 +174,11 @@ function getRatingBadge(rating?: string | null) {
   } else if (r === 'C') {
     badgeStyle = 'bg-slate-500/20 text-slate-400 border-slate-500/30';
   }
+
   return (
-    <span className={`px-2 py-0.5 rounded text-[11px] border font-bold ${badgeStyle}`}>
-      {icon} 评级: {r}
+    <span className={`px-1.5 py-0.5 rounded text-[10px] border font-bold leading-none inline-flex items-center gap-0.5 shrink-0 ${badgeStyle}`}>
+      <span>{icon}</span>
+      <span>{r}</span>
     </span>
   );
 }
@@ -185,35 +191,20 @@ export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedJdIds, setExpandedJdIds] = useState<Set<string>>(new Set());
 
+  // 视图展示模式：列表 (list) vs 紧凑网格 (grid)
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+
   // 多维过滤条件状态
   const [filterPlatform, setFilterPlatform] = useState<string>('ALL');
   const [filterMinRating, setFilterMinRating] = useState<string>('ALL');
   const [filterStarredOnly, setFilterStarredOnly] = useState<boolean>(false);
   const [filterContract, setFilterContract] = useState<string>('ALL');
 
-  // 顶部极速录入栏状态
-  const [inputContent, setInputContent] = useState('');
-  const [parsing, setParsing] = useState(false);
-  const [parseError, setParseError] = useState<string | null>(null);
-  const [parsedJob, setParsedJob] = useState<ScrapedJob | null>(null);
-  const [duplicates, setDuplicates] = useState<DuplicateCheckResult[]>([]);
-  const [forceRecordAllowed, setForceRecordAllowed] = useState(false);
-  const [savingRecord, setSavingRecord] = useState(false);
+  // 顶部弹窗录入状态
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
 
-  // 表单微调状态
-  const [editCompany, setEditCompany] = useState('');
-  const [editTitle, setEditTitle] = useState('');
-  const [editContract, setEditContract] = useState<ContractType>('CDI');
-  const [editWorkMode, setEditWorkMode] = useState<WorkMode | ''>('');
-  const [editLang, setEditLang] = useState<'FR' | 'EN'>('FR');
-  const [editRating, setEditRating] = useState<string>('B');
-  const [editStatus, setEditStatus] = useState<string>('APPLIED');
-  const [editStarred, setEditStarred] = useState<boolean>(false);
-  const [editLocation, setEditLocation] = useState('');
-  const [editSalary, setEditSalary] = useState('');
-  const [editPostedAt, setEditPostedAt] = useState('');
-  const [editHr, setEditHr] = useState('');
-  const [editNotes, setEditNotes] = useState('');
+  // 卡片右上角状态下拉菜单当前打开的岗位 ID
+  const [openStatusMenuId, setOpenStatusMenuId] = useState<string | null>(null);
 
   // 全屏沉浸式 JD 阅读弹窗状态
   const [viewerJob, setViewerJob] = useState<ApplicationRecord | null>(null);
@@ -222,6 +213,10 @@ export default function HomePage() {
   // 职位信息编辑弹窗状态
   const [editingJob, setEditingJob] = useState<ApplicationRecord | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
+
+  // 网格模式点击卡片展开的详情弹窗
+  const [detailJob, setDetailJob] = useState<ApplicationRecord | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
 
   // 删除确认状态 (记录正在等待二次确认的 id)
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -233,8 +228,20 @@ export default function HomePage() {
   // 搜索框快捷键 Ref
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  // 全局点击自动收起状态下拉菜单
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.status-menu-container')) {
+        setOpenStatusMenuId(null);
+      }
+    };
+    window.addEventListener('click', handleClickOutside);
+    return () => window.removeEventListener('click', handleClickOutside);
+  }, []);
+
   // 1. 加载所有投递记录
-  const fetchApplications = async (query = '') => {
+  const fetchApplications = useCallback(async (query = '') => {
     try {
       setLoadingList(true);
       const url = query
@@ -250,19 +257,19 @@ export default function HomePage() {
     } finally {
       setLoadingList(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchApplications();
-  }, []);
+  }, [fetchApplications]);
 
-  // 2. 搜索框防抖处理
+  // 2. 搜索框防抖处理 (优化为 180ms，兼顾灵敏度与请求频率)
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchApplications(searchQuery);
-    }, 280);
+    }, 180);
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery, fetchApplications]);
 
   // 3. 键盘快捷键 Cmd+K / Ctrl+K 聚焦反查搜索框
   useEffect(() => {
@@ -276,212 +283,114 @@ export default function HomePage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // 4. 一键读取系统剪贴板 (手机端体验优化)
-  const handleReadClipboard = async () => {
-    try {
-      if (!navigator.clipboard?.readText) {
-        alert('您的浏览器不支持直接读取剪贴板，请手动在输入框内长按粘贴。');
-        return;
-      }
-      const text = await navigator.clipboard.readText();
-      if (text) {
-        setInputContent(text.trim());
-        triggerParseAndCheck(text.trim());
-      } else {
-        alert('剪贴板中无内容，请先复制岗位链接或招聘文本。');
-      }
-    } catch (err: any) {
-      alert('无法访问剪贴板，请在输入框内手动粘贴。');
-    }
-  };
-
-  // 5. 触发解析与查重
-  const triggerParseAndCheck = async (content = inputContent) => {
-    const trimmed = content.trim();
-    if (!trimmed) {
-      setParseError('请输入或粘贴求职网址、或者岗位分享文本。');
-      return;
-    }
-
-    setParsing(true);
-    setParseError(null);
-    setParsedJob(null);
-    setDuplicates([]);
-    setForceRecordAllowed(false);
-
-    try {
-      let url: string | undefined;
-      let rawText: string | undefined = trimmed;
-
-      const urlMatch = trimmed.match(/https?:\/\/[^\s]+/i);
-      if (urlMatch) {
-        url = urlMatch[0];
-      }
-
-      const res = await fetch('/api/parse-and-check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, rawText }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || '解析失败，请检查链接');
-      }
-
-      const job: ScrapedJob = data.parsedJob;
-      setParsedJob(job);
-      setDuplicates(data.duplicates || []);
-
-      // 初始化微调表单
-      setEditCompany(job.companyRaw || '');
-      setEditTitle(job.titleRaw || '');
-      setEditContract(job.contractType || 'CDI');
-      setEditWorkMode(job.workMode || '');
-      setEditLang(job.language || 'FR');
-      setEditRating('B');
-      setEditStatus('APPLIED');
-      setEditStarred(false);
-      setEditLocation(job.location || '');
-      setEditSalary(job.salaryRange || '');
-      setEditPostedAt(job.postedAt || '');
-    } catch (err: any) {
-      setParseError(err.message || '网络连接或解析异常');
-    } finally {
-      setParsing(false);
-    }
-  };
-
-  // 6. 保存新投递记录
-  const handleSaveApplication = async () => {
-    if (!parsedJob) return;
-    setSavingRecord(true);
-    try {
-      const payload = {
-        ...parsedJob,
-        companyRaw: editCompany,
-        titleRaw: editTitle,
-        contractType: editContract,
-        workMode: editWorkMode || null,
-        language: editLang,
-        rating: editRating,
-        is_starred: editStarred,
-        location: editLocation || null,
-        salaryRange: editSalary || null,
-        postedAt: editPostedAt || null,
-        notes: editNotes || null,
-        hrContact: editHr ? { phone: editHr, raw: editHr } : null,
-        status: editStatus || 'APPLIED',
-      };
-
-      const res = await fetch('/api/applications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || '保存失败');
-      }
-
-      // 重置录入框并刷新列表
-      setInputContent('');
-      setParsedJob(null);
-      setDuplicates([]);
-      setEditWorkMode('');
-      setEditRating('B');
-      setEditStatus('APPLIED');
-      setEditStarred(false);
-      setEditNotes('');
-      setEditHr('');
-      await fetchApplications();
-    } catch (err: any) {
-      alert(`保存失败: ${err.message}`);
-    } finally {
-      setSavingRecord(false);
-    }
-  };
-
-  // 快捷切换卡片星标状态
+  // 4. 快捷切换卡片星标状态 (Optimistic UI 乐观更新)
   const handleToggleStar = async (app: ApplicationRecord, e: React.MouseEvent) => {
     e.stopPropagation();
-    const newStarred = !Boolean(app.is_starred ?? app.isStarred);
+    const currentStarred = Boolean(app.is_starred ?? app.isStarred);
+    const newStarred = !currentStarred;
+    const prevApps = applications;
+
+    // 立即本地乐观更新
     setApplications((prev) =>
       prev.map((a) => (a.id === app.id ? { ...a, is_starred: newStarred, isStarred: newStarred } : a))
     );
+
     try {
-      await fetch('/api/applications', {
+      const res = await fetch(`/api/applications/${app.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: app.id, is_starred: newStarred }),
+        body: JSON.stringify({ is_starred: newStarred }),
       });
+      if (!res.ok) throw new Error();
     } catch {
-      // 容错回滚
-      setApplications((prev) =>
-        prev.map((a) => (a.id === app.id ? { ...a, is_starred: !newStarred, isStarred: !newStarred } : a))
-      );
+      // 失败回滚
+      setApplications(prevApps);
+      alert('特别关注状态更新失败，已回滚。');
     }
   };
 
-  // 7. 更新投递状态 (流转)
+  // 5. 更新投递状态 (流转，Optimistic UI 乐观更新)
   const handleUpdateStatus = async (id: string, newStatus: string) => {
+    setOpenStatusMenuId(null);
+    const prevApps = applications;
+
+    // 立即本地乐观更新
+    setApplications((prev) =>
+      prev.map((app) => (app.id === id ? { ...app, status: newStatus } : app))
+    );
+
+    // 同步更新当前可能打开的详情弹窗
+    if (detailJob && detailJob.id === id) {
+      setDetailJob({ ...detailJob, status: newStatus });
+    }
+
     try {
-      const res = await fetch('/api/applications', {
+      const res = await fetch(`/api/applications/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status: newStatus }),
+        body: JSON.stringify({ status: newStatus }),
       });
-      if (res.ok) {
-        setApplications((prev) =>
-          prev.map((app) => (app.id === id ? { ...app, status: newStatus } : app))
-        );
-      }
+      if (!res.ok) throw new Error();
     } catch {
-      alert('状态更新失败，请稍后重试');
+      // 失败回滚
+      setApplications(prevApps);
+      alert('状态更新失败，已回滚。');
     }
   };
 
-  // 8. 打开全屏沉浸式 JD 阅读弹窗
+  // 6. 打开全屏沉浸式 JD 阅读弹窗
   const handleOpenJdViewer = (job: ApplicationRecord) => {
     setViewerJob(job);
     setIsViewerOpen(true);
   };
 
-  // 9. 打开编辑弹窗
+  // 7. 打开编辑弹窗
   const handleOpenEdit = (job: ApplicationRecord) => {
     setEditingJob(job);
     setIsEditOpen(true);
   };
 
-  // 10. 编辑保存后的乐观更新
+  // 8. 网格模式下点击卡片打开速览详情弹窗
+  const handleOpenDetail = (job: ApplicationRecord) => {
+    setDetailJob(job);
+    setIsDetailOpen(true);
+  };
+
+  // 9. 编辑保存后的乐观更新
   const handleJobSaved = (updatedJob: ApplicationRecord) => {
     setApplications((prev) =>
       prev.map((app) => (app.id === updatedJob.id ? updatedJob : app))
     );
+    if (detailJob && detailJob.id === updatedJob.id) {
+      setDetailJob(updatedJob);
+    }
   };
 
-  // 11. 删除职位记录
+  // 10. 删除职位记录 (Optimistic UI 乐观删除)
   const handleDeleteApplication = async (id: string) => {
+    const prevApps = applications;
+    setApplications((prev) => prev.filter((a) => a.id !== id));
+    setDeletingId(null);
+    setIsDeleting(true);
+
     try {
-      setIsDeleting(true);
-      const res = await fetch(`/api/applications?id=${encodeURIComponent(id)}`, {
+      const res = await fetch(`/api/applications/${id}`, {
         method: 'DELETE',
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || '删除失败');
       }
-      setApplications((prev) => prev.filter((a) => a.id !== id));
-      setDeletingId(null);
     } catch (err: any) {
+      // 失败回滚
+      setApplications(prevApps);
       alert(`删除失败: ${err.message}`);
     } finally {
       setIsDeleting(false);
     }
   };
 
-  // 12. 复制卡片内 JD 全文
+  // 11. 复制卡片内 JD 全文
   const handleCopyCardJd = async (id: string, text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -492,17 +401,35 @@ export default function HomePage() {
     }
   };
 
-  // 统计数据
+  // 12. 统计指标计算 (回复率 + 通过率 + 严格除零保护)
   const stats = useMemo(() => {
     const total = applications.length;
     const saved = applications.filter((a) => a.status === 'SAVED').length;
-    const hrCalls = applications.filter((a) => a.status === 'HR_CALL').length;
-    const interviews = applications.filter((a) => a.status === 'TECH_INTERVIEW').length;
-    const offers = applications.filter((a) => a.status === 'OFFER').length;
-    const positiveReplies = hrCalls + interviews + offers;
-    const activeApplied = total - saved;
-    const replyRate = activeApplied > 0 ? ((positiveReplies / activeApplied) * 100).toFixed(0) : '0';
-    return { total, saved, hrCalls, interviews, offers, replyRate };
+    // 有效投递数 = 总记录数 - 未投递(SAVED)
+    const effectiveApplied = total - saved;
+
+    // 回复数：排除「未投递（SAVED）」和「已投递（APPLIED）」后，所有其余明确反馈状态 (含 HR沟通、面试、Offer、被拒等)
+    const replied = applications.filter(
+      (a) => a.status !== 'SAVED' && a.status !== 'APPLIED'
+    ).length;
+
+    // 通过数：排除「未投递（SAVED）」、「已投递（APPLIED）」以及「被拒（REJECTED）」后，所有推进/通过状态 (如 HR沟通、技术面试、已获Offer)
+    const passed = applications.filter(
+      (a) => a.status !== 'SAVED' && a.status !== 'APPLIED' && a.status !== 'REJECTED'
+    ).length;
+
+    const replyRate = effectiveApplied > 0 ? ((replied / effectiveApplied) * 100).toFixed(0) : '0';
+    const passRate = effectiveApplied > 0 ? ((passed / effectiveApplied) * 100).toFixed(0) : '0';
+
+    return {
+      total,
+      saved,
+      effectiveApplied,
+      replied,
+      passed,
+      replyRate,
+      passRate,
+    };
   }, [applications]);
 
   // 计算各平台记录数量与当前有记录的平台列表
@@ -574,12 +501,13 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-blue-600 selection:text-white">
-      {/* 顶部 Brand Header */}
-      <header className="sticky top-0 z-30 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 sm:px-6">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-sky-400 flex items-center justify-center shadow-lg shadow-blue-500/20">
-              <Sparkles className="w-5 h-5 text-white" />
+      {/* 顶部 Brand Header 与统计指标 */}
+      <header className="sticky top-0 z-30 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-3 py-2.5 sm:px-6">
+        <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
+          {/* Logo 区域 */}
+          <div className="flex items-center gap-2.5 shrink-0">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-sky-400 flex items-center justify-center shadow-lg shadow-blue-500/20">
+              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
@@ -588,437 +516,80 @@ export default function HomePage() {
                 </h1>
                 <span className="text-sm">🇫🇷</span>
               </div>
-              <p className="text-[11px] text-slate-400 hidden sm:block">
-                零 Token 法国求职雷达 · 剪贴板闪电防重与来电急救反查
+              <p className="text-[11px] text-slate-400 hidden md:block">
+                法国求职雷达 · 极速录入 · 状态流转 · 来电急救反查
               </p>
             </div>
           </div>
 
-          {/* 实时统计微标 */}
-          <div className="flex items-center gap-2 text-xs">
-            <div className="px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700/80 flex items-center gap-1.5">
-              <span className="text-slate-400">总岗位:</span>
+          {/* 顶部统计指标栏：总数、回复率、通过率 + 「+ 录入岗位」按钮 */}
+          <div className="flex items-center gap-2 sm:gap-2.5 text-xs flex-wrap justify-end">
+            {/* 总岗位 */}
+            <div
+              className="px-2 py-1 rounded-lg bg-slate-800/80 border border-slate-700/80 flex items-center gap-1.5"
+              title={`全部投递库记录: ${stats.total} 条 (有效投递: ${stats.effectiveApplied}，未投递: ${stats.saved})`}
+            >
+              <span className="text-slate-400">总计:</span>
               <strong className="text-blue-400 font-bold">{stats.total}</strong>
             </div>
+
+            {/* 未投递微标 (大于0时显示) */}
             {stats.saved > 0 && (
-              <div className="px-2.5 py-1 rounded-lg bg-amber-950/60 border border-amber-800/60 flex items-center gap-1.5 hidden sm:flex">
+              <div
+                className="px-2 py-1 rounded-lg bg-amber-950/60 border border-amber-800/60 items-center gap-1.5 hidden sm:flex"
+                title="已保存但尚未正式投递的待办岗位"
+              >
                 <span className="text-amber-400 font-bold">📌 未投:</span>
                 <strong className="text-amber-300 font-bold">{stats.saved}</strong>
               </div>
             )}
-            <div className="px-2.5 py-1 rounded-lg bg-emerald-950/60 border border-emerald-800/60 flex items-center gap-1.5">
+
+            {/* 回复率核心指标 */}
+            <div
+              className="px-2.5 py-1 rounded-lg bg-emerald-950/60 border border-emerald-800/60 flex items-center gap-1.5 cursor-help"
+              title={`回复率口径：收到有效反馈数 ÷ 有效投递数 (${stats.replied}/${stats.effectiveApplied})\n排除未投递(SAVED)与待回复(APPLIED)，包含 HR沟通、技术面试、已获Offer与未通过等所有获得明确回复的投递`}
+            >
               <Flame className="w-3.5 h-3.5 text-emerald-400" />
               <span className="text-emerald-300">回复率:</span>
-              <strong className="text-emerald-400 font-bold">{stats.replyRate}%</strong>
+              <strong className="text-emerald-400 font-bold">
+                {stats.effectiveApplied > 0 ? `${stats.replyRate}%` : '—'}
+              </strong>
             </div>
+
+            {/* 通过率核心指标 (新增) */}
+            <div
+              className="px-2.5 py-1 rounded-lg bg-indigo-950/60 border border-indigo-800/60 flex items-center gap-1.5 cursor-help"
+              title={`通过率口径：推进/通过数 ÷ 有效投递数 (${stats.passed}/${stats.effectiveApplied})\n排除未投递(SAVED)、待回复(APPLIED)与未通过(REJECTED)，计算已成功推进到 HR沟通、技术面试或已获Offer的比例`}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" />
+              <span className="text-indigo-300">通过率:</span>
+              <strong className="text-indigo-400 font-bold">
+                {stats.effectiveApplied > 0 ? `${stats.passRate}%` : '—'}
+              </strong>
+            </div>
+
+            {/* 极速录入按钮 (弹窗触发) */}
+            <button
+              type="button"
+              onClick={() => setIsQuickAddOpen(true)}
+              className="py-1.5 px-3 sm:px-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center gap-1.5 transition shadow-lg shadow-blue-500/25 shrink-0 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>录入岗位</span>
+            </button>
           </div>
         </div>
       </header>
 
       {/* 主体内容 */}
-      <main className="flex-1 max-w-4xl w-full mx-auto p-4 sm:p-6 space-y-6">
+      <main className="flex-1 max-w-5xl w-full mx-auto p-3 sm:p-5 space-y-4">
         {/* ============================================================== */}
-        {/* 模块一：顶部「极速录入与剪贴板解析栏」 */}
+        {/* 中部「☎️ HR 来电闪电反查搜索框」 */}
         {/* ============================================================== */}
-        <section className="p-4 sm:p-5 rounded-3xl bg-slate-900/90 border border-slate-800/90 shadow-2xl space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
-              <h2 className="text-sm font-bold text-slate-200 tracking-wide uppercase">
-                极速录入与智能防重
-              </h2>
-            </div>
-            <span className="text-[11px] text-slate-400">
-              支持 Apec · Indeed · HelloWork · LinkedIn · WTTJ
-            </span>
-          </div>
-
-          {/* 输入框与一键粘贴按钮 */}
-          <div className="space-y-2">
-            <div className="relative">
-              <textarea
-                rows={2}
-                value={inputContent}
-                placeholder="粘贴法国招聘岗位 URL 或 App 分享的全部文本..."
-                onChange={(e) => setInputContent(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-950/90 border border-slate-700/80 rounded-2xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition resize-none"
-              />
-              {inputContent && (
-                <button
-                  type="button"
-                  onClick={() => setInputContent('')}
-                  className="absolute right-2.5 top-2.5 p-1 rounded-full text-slate-400 hover:text-slate-200 hover:bg-slate-800"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-
-            {/* 操作按钮组 (移动端单手操作优化) */}
-            <div className="grid grid-cols-2 gap-2.5">
-              <button
-                type="button"
-                onClick={handleReadClipboard}
-                className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-98 text-slate-200 text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 transition border border-slate-700/70"
-              >
-                <Clipboard className="w-4 h-4 text-blue-400" />
-                <span>📋 读取剪贴板</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => triggerParseAndCheck()}
-                disabled={parsing || !inputContent.trim()}
-                className="py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 active:scale-98 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition shadow-lg shadow-blue-600/20"
-              >
-                {parsing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>解析查重中...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4" />
-                    <span>⚡ 解析并查重</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* 错误提示 */}
-          {parseError && (
-            <div className="p-3 rounded-xl bg-red-950/70 border border-red-800 text-red-200 text-xs flex items-center gap-2">
-              <XCircle className="w-4 h-4 text-red-400 shrink-0" />
-              <span>{parseError}</span>
-            </div>
-          )}
-
-          {/* 解析后展开的微调预览表单 */}
-          {parsedJob && (
-            <div className="pt-3 border-t border-slate-800 space-y-4 animate-in fade-in duration-200">
-              {/* ⚠️ 醒目防重警告 */}
-              {duplicates.length > 0 && !forceRecordAllowed ? (
-                <div className="p-4 rounded-2xl bg-gradient-to-b from-amber-950/80 to-red-950/70 border-2 border-amber-500/80 shadow-xl space-y-3">
-                  <div className="flex items-start gap-2.5">
-                    <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                    <div>
-                      <h3 className="text-sm font-bold text-amber-200">
-                        ⚠️ 警告：检测到 {duplicates.length} 条高危重复历史投递！
-                      </h3>
-                      <p className="text-xs text-amber-300/80 mt-0.5">
-                        防止短时间内重复投递同团队职位，避免给 HR 带来糟糕体验。
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    {duplicates.map((dup, idx) => (
-                      <div
-                        key={idx}
-                        className="p-3 rounded-xl bg-slate-900/90 border border-amber-600/40 text-xs space-y-1"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="px-2 py-0.5 rounded font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                            {dup.level} 命中
-                          </span>
-                          <span className="text-slate-400">
-                            投递于: {dup.matchedApplication?.applied_at?.slice(0, 10)} (
-                            {formatDaysAgo(dup.matchedApplication?.applied_at || '')})
-                          </span>
-                        </div>
-                        <p className="font-semibold text-slate-100 text-sm">
-                          {dup.matchedApplication?.company_raw} - {dup.matchedApplication?.title_raw}
-                        </p>
-                        <p className="text-amber-200">{dup.reason}</p>
-                        <div className="flex items-center justify-between text-slate-400 pt-1">
-                          <span>
-                            当时状态: <strong className="text-slate-200">{dup.matchedApplication?.status}</strong>
-                          </span>
-                          {dup.matchedApplication?.clean_url && (
-                            <a
-                              href={dup.matchedApplication.clean_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-blue-400 hover:underline inline-flex items-center gap-1"
-                            >
-                              历史投递链接 <ExternalLink className="w-3 h-3" />
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="flex gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setParsedJob(null);
-                        setDuplicates([]);
-                      }}
-                      className="flex-1 py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition"
-                    >
-                      放弃重复投递 (清除)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setForceRecordAllowed(true)}
-                      className="py-2.5 px-3 rounded-xl bg-amber-600/30 hover:bg-amber-600/40 text-amber-200 border border-amber-500/50 text-xs font-bold transition"
-                    >
-                      仍然强制记录
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-
-              {/* 字段编辑网格 */}
-              <div className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-1">
-                      公司名称 (Company)
-                    </label>
-                    <input
-                      type="text"
-                      value={editCompany}
-                      onChange={(e) => setEditCompany(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-950/80 border border-slate-700 rounded-xl text-sm font-bold text-slate-100 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-1">
-                      职位名称 (Title)
-                    </label>
-                    <input
-                      type="text"
-                      value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-950/80 border border-slate-700 rounded-xl text-sm font-bold text-slate-100 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
-                  {/* 合同类型下拉选择 */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-1">
-                      合同类型
-                    </label>
-                    <select
-                      value={editContract}
-                      onChange={(e) => setEditContract(e.target.value as ContractType)}
-                      className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-bold cursor-pointer"
-                    >
-                      <option value="CDI">CDI (长期合同)</option>
-                      <option value="CDD">CDD (定期合同)</option>
-                      <option value="FREELANCE">FREELANCE (自由职业)</option>
-                      <option value="STAGE">STAGE (实习)</option>
-                      <option value="ALTERNANCE">ALTERNANCE (学徒/半工半读)</option>
-                      <option value="UNKNOWN">UNKNOWN (待定/未知)</option>
-                    </select>
-                  </div>
-
-                  {/* 办公模式下拉选择 */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-1">
-                      办公方式
-                    </label>
-                    <select
-                      value={editWorkMode}
-                      onChange={(e) => setEditWorkMode(e.target.value as WorkMode | '')}
-                      className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-bold cursor-pointer"
-                    >
-                      <option value="">未注明 (不限)</option>
-                      <option value="ONSITE">🏢 现场办公</option>
-                      <option value="HYBRID">🔄 混合办公</option>
-                      <option value="REMOTE">🏠 远程</option>
-                    </select>
-                  </div>
-
-                  {/* 语言切换 */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-1">
-                      JD 语言
-                    </label>
-                    <div className="grid grid-cols-2 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
-                      {(['FR', 'EN'] as const).map((l) => (
-                        <button
-                          key={l}
-                          type="button"
-                          onClick={() => setEditLang(l)}
-                          className={`py-1 text-xs font-bold rounded-lg transition ${
-                            editLang === l
-                              ? 'bg-indigo-600 text-white'
-                              : 'text-slate-400 hover:text-slate-200'
-                          }`}
-                        >
-                          {l === 'FR' ? '🇫🇷 法语' : '🇬🇧 英语'}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* 工作地点 */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-1">
-                      工作地点
-                    </label>
-                    <input
-                      type="text"
-                      value={editLocation}
-                      placeholder="如: Paris"
-                      onChange={(e) => setEditLocation(e.target.value)}
-                      className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-
-                  {/* 薪资范围 */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-1">
-                      薪资范围
-                    </label>
-                    <input
-                      type="text"
-                      value={editSalary}
-                      placeholder="如: 50k - 60k €"
-                      onChange={(e) => setEditSalary(e.target.value)}
-                      className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-1">
-                      发布日期 (Posted Date)
-                    </label>
-                    <input
-                      type="text"
-                      value={editPostedAt}
-                      placeholder="如: 2026-10-25 或 1 周前"
-                      onChange={(e) => setEditPostedAt(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-1">
-                      HR 联系电话/姓名 (便于反查)
-                    </label>
-                    <input
-                      type="text"
-                      value={editHr}
-                      placeholder="如: 06 12 34 56 78 或 Marie"
-                      onChange={(e) => setEditHr(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-1">
-                      投递备注笔记
-                    </label>
-                    <input
-                      type="text"
-                      value={editNotes}
-                      placeholder="如: 内推员工姓名、自荐信版本..."
-                      onChange={(e) => setEditNotes(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                </div>
-
-                {/* 评级、状态与特别关注行 */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-1">
-                      岗位评级
-                    </label>
-                    <select
-                      value={editRating}
-                      onChange={(e) => setEditRating(e.target.value)}
-                      className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-bold cursor-pointer"
-                    >
-                      <option value="S+">🔥 S+ 顶尖向往</option>
-                      <option value="S">⭐ S 极度契合</option>
-                      <option value="A+">🌟 A+ 优质机会</option>
-                      <option value="A">✨ A 值得一试</option>
-                      <option value="A-">👍 A- 基本契合</option>
-                      <option value="B">🎯 B 普通日常 (默认)</option>
-                      <option value="C">📦 C 保底兜底</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-1">
-                      初始状态
-                    </label>
-                    <select
-                      value={editStatus}
-                      onChange={(e) => setEditStatus(e.target.value)}
-                      className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-bold cursor-pointer"
-                    >
-                      <option value="APPLIED">🚀 已直接投递 (APPLIED)</option>
-                      <option value="SAVED">📌 先保存/未投递 (SAVED)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-1">
-                      特别关注
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setEditStarred((v) => !v)}
-                      className={`w-full py-1.5 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                        editStarred
-                          ? 'bg-amber-500/20 text-amber-300 border-amber-400 shadow-sm shadow-amber-500/30'
-                          : 'bg-slate-950 text-slate-400 border-slate-700 hover:text-slate-200'
-                      }`}
-                    >
-                      <Star className={`w-3.5 h-3.5 ${editStarred ? 'text-amber-400 fill-amber-400' : 'text-slate-500'}`} />
-                      <span>{editStarred ? '⭐ 已设为特别关注' : '点击设为特别关注'}</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* 提交按钮 */}
-                <button
-                  type="button"
-                  onClick={handleSaveApplication}
-                  disabled={savingRecord || (duplicates.length > 0 && !forceRecordAllowed)}
-                  className={`w-full py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg transition active:scale-98 ${
-                    duplicates.length > 0 && !forceRecordAllowed
-                      ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                      : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30'
-                  }`}
-                >
-                  {savingRecord ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      正在保存...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-4 h-4" />
-                      确认并加入投递看板
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          )}
-        </section>
-
-        {/* ============================================================== */}
-        {/* 模块二：中部「☎️ HR 来电闪电反查搜索框」 */}
-        {/* ============================================================== */}
-        <section className="space-y-2">
+        <section className="space-y-1.5">
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-              <PhoneCall className="w-5 h-5 text-amber-400" />
+              <PhoneCall className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
             </div>
             <input
               ref={searchInputRef}
@@ -1026,7 +597,7 @@ export default function HomePage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="☎️ HR 来电闪电反查：输入电话、公司名、职位、HR姓名、JD关键词..."
-              className="w-full pl-11 pr-24 py-3.5 bg-slate-900/90 border border-amber-500/40 focus:border-amber-400 focus:ring-2 focus:ring-amber-500/20 rounded-2xl text-sm sm:text-base text-slate-100 placeholder-slate-400 shadow-xl transition"
+              className="w-full pl-10 sm:pl-11 pr-20 py-2.5 sm:py-3 bg-slate-900/90 border border-amber-500/40 focus:border-amber-400 focus:ring-2 focus:ring-amber-500/20 rounded-2xl text-xs sm:text-sm text-slate-100 placeholder-slate-400 shadow-xl transition"
             />
             <div className="absolute inset-y-0 right-3 flex items-center gap-1.5">
               {searchQuery ? (
@@ -1038,7 +609,7 @@ export default function HomePage() {
                   <X className="w-4 h-4" />
                 </button>
               ) : (
-                <kbd className="hidden sm:inline-flex items-center gap-0.5 px-2 py-0.5 text-[11px] font-semibold text-slate-400 bg-slate-800 border border-slate-700 rounded-md">
+                <kbd className="hidden sm:inline-flex items-center gap-0.5 px-2 py-0.5 text-[10px] font-semibold text-slate-400 bg-slate-800 border border-slate-700 rounded-md">
                   ⌘K
                 </kbd>
               )}
@@ -1051,22 +622,22 @@ export default function HomePage() {
                 onClick={() => setSearchQuery('')}
                 className="underline hover:text-white"
               >
-                清除过滤
+                清除反查关键词
               </button>
             </div>
           )}
         </section>
 
         {/* ============================================================== */}
-        {/* 模块三：底部「状态流转看板 / 列表」 */}
+        {/* 底部「多维过滤、视图切换、状态 Tab 与列表/网格渲染」 */}
         {/* ============================================================== */}
-        <section className="space-y-4">
-          {/* 多维快捷筛选工具栏 */}
-          <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 text-xs flex flex-wrap items-center justify-between gap-2.5">
-            <div className="flex items-center gap-2 flex-wrap">
+        <section className="space-y-3">
+          {/* 多维快捷筛选工具栏 + 视图模式切换 */}
+          <div className="p-2.5 sm:p-3 rounded-2xl bg-slate-900/80 border border-slate-800 text-xs flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
               <span className="text-slate-400 font-bold flex items-center gap-1">
                 <Filter className="w-3.5 h-3.5 text-blue-400" />
-                多维筛选:
+                筛选:
               </span>
 
               {/* 平台筛选 */}
@@ -1124,7 +695,7 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => setFilterStarredOnly((v) => !v)}
-                className={`px-2.5 py-1 rounded-lg border font-bold transition flex items-center gap-1 ${
+                className={`px-2 py-1 rounded-lg border font-bold transition flex items-center gap-1 ${
                   filterStarredOnly
                     ? 'bg-amber-500/20 text-amber-300 border-amber-500 shadow-sm shadow-amber-500/20'
                     : 'bg-slate-950 text-slate-400 border-slate-700 hover:text-slate-200'
@@ -1133,24 +704,54 @@ export default function HomePage() {
                 <Star className={`w-3.5 h-3.5 ${filterStarredOnly ? 'text-amber-400 fill-amber-400' : 'text-slate-500'}`} />
                 <span>仅看特别关注</span>
               </button>
+
+              {/* 重置筛选 */}
+              {(filterPlatform !== 'ALL' || filterMinRating !== 'ALL' || filterContract !== 'ALL' || filterStarredOnly) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilterPlatform('ALL');
+                    setFilterMinRating('ALL');
+                    setFilterContract('ALL');
+                    setFilterStarredOnly(false);
+                  }}
+                  className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition font-medium flex items-center gap-1"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>重置</span>
+                </button>
+              )}
             </div>
 
-            {/* 重置筛选 */}
-            {(filterPlatform !== 'ALL' || filterMinRating !== 'ALL' || filterContract !== 'ALL' || filterStarredOnly) && (
+            {/* 视图模式切换：列表 (List) 与 紧凑网格 (Grid) */}
+            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 ml-auto">
               <button
                 type="button"
-                onClick={() => {
-                  setFilterPlatform('ALL');
-                  setFilterMinRating('ALL');
-                  setFilterContract('ALL');
-                  setFilterStarredOnly(false);
-                }}
-                className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition font-medium flex items-center gap-1"
+                onClick={() => setViewMode('list')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                  viewMode === 'list'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="详细列表模式 (单列、带完整预览折叠)"
               >
-                <X className="w-3.5 h-3.5" />
-                <span>重置过滤</span>
+                <LayoutList className="w-3.5 h-3.5" />
+                <span>列表</span>
               </button>
-            )}
+              <button
+                type="button"
+                onClick={() => setViewMode('grid')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                  viewMode === 'grid'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="紧凑网格模式 (手机2列/桌面3~4列，高密度展示)"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>网格</span>
+              </button>
+            </div>
           </div>
 
           {/* 状态流转 Tab 切换 */}
@@ -1178,12 +779,13 @@ export default function HomePage() {
                   key={tab}
                   type="button"
                   onClick={() => setActiveTab(tab)}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center gap-1.5 shrink-0 ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center gap-1.5 shrink-0 ${
                     active
-                      ? `${meta.badge} text-white shadow-lg`
+                      ? `${meta.badge} text-white shadow-md`
                       : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-slate-200'
                   }`}
                 >
+                  <span>{meta.icon}</span>
                   <span>{meta.label}</span>
                   <span
                     className={`px-1.5 py-0.2 rounded-full text-[10px] ${
@@ -1197,7 +799,7 @@ export default function HomePage() {
             })}
           </div>
 
-          {/* 列表渲染 */}
+          {/* 数据加载状态 */}
           {loadingList ? (
             <div className="py-16 text-center text-slate-500 flex flex-col items-center gap-2">
               <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
@@ -1208,11 +810,14 @@ export default function HomePage() {
               <Building2 className="w-8 h-8 mx-auto text-slate-600" />
               <p className="text-sm font-medium">暂无匹配的职位投递记录</p>
               <p className="text-xs text-slate-600">
-                可使用上方录入栏或从招聘 App 分享直接添加
+                点击右上角「+ 录入岗位」快速添加
               </p>
             </div>
-          ) : (
-            <div className="space-y-3">
+          ) : viewMode === 'list' ? (
+            /* ============================================================== */
+            /* 1. 列表模式 (瘦身优化版，移除底部按钮，右上角状态按需下拉) */
+            /* ============================================================== */
+            <div className="space-y-2.5">
               {filteredApplications.map((app) => {
                 const isExpanded = expandedJdIds.has(app.id);
                 const currentStatus = (app.status || 'APPLIED') as TabStatus;
@@ -1225,7 +830,7 @@ export default function HomePage() {
                   if (typeof app.hr_contact === 'string') hrText = app.hr_contact;
                   else if (typeof app.hr_contact === 'object') {
                     const c: any = app.hr_contact;
-                    hrText = [c.name, c.phone, c.email].filter(Boolean).join(' · ');
+                    hrText = [c.name, c.phone, c.email].filter(Boolean).join(' · ') || c.raw || '';
                   }
                 }
 
@@ -1236,33 +841,42 @@ export default function HomePage() {
                   isStarred
                 );
 
+                const isMenuOpen = openStatusMenuId === app.id;
+
                 return (
                   <div
                     key={app.id}
-                    className={`p-4 sm:p-5 rounded-2xl ${bgStyle} border ${borderStyle} transition space-y-3.5 shadow-lg relative overflow-hidden`}
+                    className={`p-3.5 sm:p-4 rounded-2xl ${bgStyle} border ${borderStyle} transition space-y-2.5 shadow-md relative ${isMenuOpen ? 'z-40' : 'z-10'}`}
                   >
                     {/* 水印盖章效果 (OFFER 成功章 / REJECTED 失败章) */}
                     {stampType === 'SUCCESS' && (
-                      <div className="absolute right-24 sm:right-32 top-3 pointer-events-none select-none opacity-80 transform -rotate-12 border-2 border-dashed border-emerald-400 text-emerald-200 bg-emerald-950/60 font-black tracking-widest text-xs sm:text-sm px-3 py-1 rounded-md uppercase shadow-lg shadow-emerald-500/20">
+                      <div className="absolute right-36 top-3 pointer-events-none select-none opacity-80 transform -rotate-12 border-2 border-dashed border-emerald-400 text-emerald-200 bg-emerald-950/60 font-black tracking-widest text-[11px] sm:text-xs px-2.5 py-0.5 rounded uppercase shadow-lg shadow-emerald-500/20">
                         🎉 OFFER · SUCCESS
                       </div>
                     )}
                     {stampType === 'FAILED' && (
-                      <div className="absolute right-24 sm:right-32 top-3 pointer-events-none select-none opacity-85 transform -rotate-12 border-2 border-dashed border-zinc-400 text-zinc-100 bg-zinc-950/85 font-black tracking-widest text-xs sm:text-sm px-3 py-1 rounded-md uppercase shadow-lg shadow-black/40">
+                      <div className="absolute right-36 top-3 pointer-events-none select-none opacity-85 transform -rotate-12 border-2 border-dashed border-zinc-400 text-zinc-100 bg-zinc-950/85 font-black tracking-widest text-[11px] sm:text-xs px-2.5 py-0.5 rounded uppercase shadow-lg shadow-black/40">
                         ✕ FAILED · 未通过
                       </div>
                     )}
 
-                    {/* 卡片头部：公司、评级、合同、语言、距今天数 */}
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-base sm:text-lg font-black text-slate-100">
+                    {/* 卡片头部区域：左侧公司+标签+职位通栏，右侧状态流转与第二行投递时间 */}
+                    <div className="flex items-start justify-between gap-3">
+                      {/* 左侧主要信息 */}
+                      <div className="flex-1 min-w-0 space-y-1.5">
+                        {/* 空间足够时跟在公司名后 + 空间不足自动折行 */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span
+                            className="text-sm sm:text-base font-black text-slate-100 shrink-0"
+                            title={app.company_raw}
+                          >
                             {app.company_raw}
                           </span>
+
+                          {/* 所有 Tags（高度与其他 tag 严格对齐） */}
                           {getRatingBadge(app.rating)}
                           <span
-                            className={`px-2 py-0.5 rounded text-[11px] font-extrabold border ${
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-extrabold border leading-none inline-flex items-center shrink-0 ${
                               app.contract_type === 'CDD'
                                 ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
                                 : app.contract_type === 'FREELANCE'
@@ -1278,42 +892,92 @@ export default function HomePage() {
                           >
                             {app.contract_type || 'UNKNOWN'}
                           </span>
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
-                            {app.language === 'FR' ? '🇫🇷 FR' : '🇬🇧 EN'}
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 leading-none inline-flex items-center shrink-0">
+                            {app.language === 'FR' ? 'FR' : 'EN'}
                           </span>
                           {app.work_mode && (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30">
-                              {app.work_mode === 'ONSITE' ? '🏢 现场办公' : app.work_mode === 'HYBRID' ? '🔄 混合办公' : '🏠 远程'}
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30 leading-none inline-flex items-center shrink-0">
+                              {app.work_mode === 'ONSITE' ? '🏢 现场' : app.work_mode === 'HYBRID' ? '🔄 混合' : '🏠 远程'}
                             </span>
                           )}
                           {app.platform && app.platform !== 'OTHER' && (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 leading-none inline-flex items-center shrink-0">
                               {app.platform}
                             </span>
                           )}
                         </div>
-                        <h3 className="text-sm font-semibold text-slate-300">
+
+                        {/* 岗位名称通栏展示，超宽再自然换行 */}
+                        <h4
+                          className="text-xs sm:text-sm font-semibold text-slate-200 w-full break-words leading-snug"
+                          title={app.title_raw}
+                        >
                           {app.title_raw}
-                        </h3>
+                        </h4>
                       </div>
 
-                      {/* 投递时间与状态标识 + 星标/编辑/删除操作按钮 */}
-                      <div className="text-right shrink-0 space-y-2">
-                        <div className="flex items-center gap-1.5 justify-end flex-wrap">
+                      {/* 右侧：第一行操作按钮 + 第二行右侧投递时间 */}
+                      <div className="shrink-0 flex flex-col items-end gap-1.5">
+                        {/* 第一行右侧：状态按需展开徽章 + 星标 + 编辑 + 删除 */}
+                        <div className="flex items-center gap-1 sm:gap-1.5 justify-end">
                           {overTwoMonths && (
                             <span
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-500/20 text-rose-300 border border-rose-500/50"
+                              className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-500/20 text-rose-300 border border-rose-500/50"
                               title="已投递超过2个月无反馈"
                             >
-                              ⚠️ 已超过2个月
+                              ⚠️ &gt;2个月
                             </span>
                           )}
 
-                          <span
-                            className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold border ${statusMeta.color}`}
-                          >
-                            {statusMeta.label}
-                          </span>
+                          {/* 右上角状态按需下拉菜单 */}
+                          <div className="relative status-menu-container">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenStatusMenuId(isMenuOpen ? null : app.id);
+                              }}
+                              className={`px-2 py-0.5 rounded-full text-xs font-bold border transition flex items-center gap-1 cursor-pointer ${statusMeta.color}`}
+                              title="点击更改投递状态"
+                            >
+                              <span>{statusMeta.icon}</span>
+                              <span>{statusMeta.label}</span>
+                              <ChevronDown className="w-3 h-3 opacity-70" />
+                            </button>
+
+                            {/* 展开的状态选择菜单（置顶高 z-50 避免被遮挡） */}
+                            {isMenuOpen && (
+                              <div className="absolute right-0 top-full mt-1.5 w-36 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
+                                <div className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800">
+                                  流转状态选择
+                                </div>
+                                {STATUS_SELECT_OPTIONS.map((opt) => {
+                                  const selected = app.status === opt.key;
+                                  return (
+                                    <button
+                                      key={opt.key}
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleUpdateStatus(app.id, opt.key);
+                                      }}
+                                      className={`w-full px-2.5 py-1.5 text-left text-xs font-semibold flex items-center justify-between transition ${
+                                        selected
+                                          ? 'bg-blue-600/30 text-blue-300'
+                                          : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                      }`}
+                                    >
+                                      <span className="flex items-center gap-1.5">
+                                        <span>{opt.icon}</span>
+                                        <span>{opt.label}</span>
+                                      </span>
+                                      {selected && <Check className="w-3 h-3 text-blue-400" />}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
 
                           {/* 特别关注 ⭐ 切换按钮 */}
                           <button
@@ -1339,17 +1003,17 @@ export default function HomePage() {
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
 
-                          {/* 删除按钮与二次确认 */}
+                          {/* 删除按钮与确认 */}
                           {deletingId === app.id ? (
                             <div className="inline-flex items-center gap-1 bg-rose-950/80 border border-rose-800 px-1.5 py-0.5 rounded-lg text-[10px] animate-in fade-in">
-                              <span className="text-rose-300 font-bold">确定删除?</span>
+                              <span className="text-rose-300 font-bold">删?</span>
                               <button
                                 type="button"
                                 disabled={isDeleting}
                                 onClick={() => handleDeleteApplication(app.id)}
                                 className="px-1.5 py-0.5 bg-rose-600 hover:bg-rose-500 text-white rounded font-bold transition"
                               >
-                                {isDeleting ? '...' : '是'}
+                                是
                               </button>
                               <button
                                 type="button"
@@ -1371,41 +1035,45 @@ export default function HomePage() {
                           )}
                         </div>
 
-                        <div className="flex items-center gap-1 text-[11px] text-slate-400 justify-end">
+                        {/* 第二行右侧：投递相对时间 (昨天/2天前 等) */}
+                        <div className="flex items-center gap-1 text-[11px] text-slate-400 justify-end pt-0.5">
                           <Clock className="w-3 h-3 text-slate-500" />
                           <span>{formatDaysAgo(app.applied_at)}</span>
                         </div>
                       </div>
                     </div>
 
-                    {/* 地点、薪资与 HR 联系人高亮反查信息 */}
-                    <div className="flex items-center gap-3 text-xs text-slate-400 flex-wrap">
+                    {/* 地点、薪资、发布与 HR 联系人反查信息 */}
+                    <div className="flex items-center gap-2.5 text-xs text-slate-400 flex-wrap">
                       {app.location && (
                         <div className="flex items-center gap-1">
-                          <MapPin className="w-3.5 h-3.5 text-slate-500" />
+                          <MapPin className="w-3 h-3 text-slate-500" />
                           <span>{app.location}</span>
                         </div>
                       )}
+
                       {app.salary_range && (
                         <div className="flex items-center gap-1 text-emerald-400 font-semibold">
                           <span>💰 {app.salary_range}</span>
                         </div>
                       )}
+
                       {(app.posted_at || app.postedAt) && (
                         <div className="flex items-center gap-1 text-slate-400">
-                          <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                          <Calendar className="w-3 h-3 text-slate-500" />
                           <span>
-                            发布于 {app.posted_at || app.postedAt} (
-                            {formatDaysAgo(app.posted_at || app.postedAt || '')})
+                            发布: {formatPostedDate(app.posted_at || app.postedAt)}
                           </span>
                         </div>
                       )}
+
                       {hrText && (
-                        <div className="flex items-center gap-1 bg-amber-500/10 text-amber-300 px-2 py-0.5 rounded-lg border border-amber-500/20">
+                        <div className="flex items-center gap-1 bg-amber-500/10 text-amber-300 px-1.5 py-0.5 rounded-lg border border-amber-500/20">
                           <Phone className="w-3 h-3" />
                           <span>HR: {hrText}</span>
                         </div>
                       )}
+
                       {app.clean_url && (
                         <a
                           href={app.clean_url}
@@ -1413,14 +1081,14 @@ export default function HomePage() {
                           rel="noreferrer"
                           className="ml-auto inline-flex items-center gap-1 text-blue-400 hover:underline"
                         >
-                          原始职位链接 <ExternalLink className="w-3 h-3" />
+                          原链接 <ExternalLink className="w-3 h-3" />
                         </a>
                       )}
                     </div>
 
                     {/* 备注笔记 */}
                     {app.notes && (
-                      <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-xs text-slate-300">
+                      <div className="p-2 rounded-xl bg-slate-950/70 border border-slate-800 text-xs text-slate-300">
                         <strong className="text-slate-400 font-medium">笔记: </strong>
                         {app.notes}
                       </div>
@@ -1428,7 +1096,7 @@ export default function HomePage() {
 
                     {/* 可折叠展开的结构化 JD 预览与全屏阅读器 */}
                     {app.jd_content && (
-                      <div className="pt-1">
+                      <div className="pt-0.5">
                         <div className="flex items-center justify-between gap-2">
                           <button
                             type="button"
@@ -1438,17 +1106,16 @@ export default function HomePage() {
                             {isExpanded ? (
                               <>
                                 <span>收起岗位 JD 正文</span>
-                                <ChevronUp className="w-3.5 h-3.5" />
+                                <ChevronUp className="w-3 h-3" />
                               </>
                             ) : (
                               <>
-                                <span>展开完整 JD 正文与要求</span>
-                                <ChevronDown className="w-3.5 h-3.5" />
+                                <span>展开完整 JD 正文</span>
+                                <ChevronDown className="w-3 h-3" />
                               </>
                             )}
                           </button>
 
-                          {/* 快捷全屏阅读入口 */}
                           <button
                             type="button"
                             onClick={() => handleOpenJdViewer(app)}
@@ -1460,9 +1127,8 @@ export default function HomePage() {
                         </div>
 
                         {isExpanded && (
-                          <div className="mt-2.5 p-3.5 rounded-2xl bg-slate-950 border border-slate-800 text-xs text-slate-300 space-y-2">
-                            {/* 工具栏：全屏阅读 + 复制 */}
-                            <div className="flex items-center justify-between border-b border-slate-800/80 pb-2 mb-2">
+                          <div className="mt-2 p-3 rounded-2xl bg-slate-950 border border-slate-800 text-xs text-slate-300 space-y-2">
+                            <div className="flex items-center justify-between border-b border-slate-800/80 pb-1.5 mb-1.5">
                               <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1">
                                 <Sparkles className="w-3 h-3 text-blue-400" />
                                 JD 智能排版预览
@@ -1496,43 +1162,149 @@ export default function HomePage() {
                               </div>
                             </div>
 
-                            <div className="max-h-72 overflow-y-auto pr-1">
+                            <div className="max-h-60 overflow-y-auto pr-1">
                               <FormattedJdRenderer content={app.jd_content} />
                             </div>
                           </div>
                         )}
                       </div>
                     )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            /* ============================================================== */
+            /* 2. 紧凑网格模式 (Grid: 手机2列、桌面3~4列，精简信息+点击卡片展开详情) */
+            /* ============================================================== */
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3">
+              {filteredApplications.map((app) => {
+                const currentStatus = (app.status || 'APPLIED') as TabStatus;
+                const statusMeta =
+                  STATUS_LABELS[currentStatus] || STATUS_LABELS.APPLIED;
+                const isStarred = Boolean(app.is_starred ?? app.isStarred);
+                const { bgStyle, borderStyle, stampType } = getCardStyle(
+                  currentStatus,
+                  app.applied_at,
+                  isStarred
+                );
+                const isMenuOpen = openStatusMenuId === app.id;
 
-                    {/* 底部快捷状态流转按钮群 */}
-                    <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2 flex-wrap">
-                      <span className="text-[11px] font-semibold text-slate-500">
-                        流转状态:
-                      </span>
-                      <div className="flex items-center gap-1 overflow-x-auto">
-                        {(
-                          [
-                            'SAVED',
-                            'APPLIED',
-                            'HR_CALL',
-                            'TECH_INTERVIEW',
-                            'OFFER',
-                            'REJECTED',
-                          ] as const
-                        ).map((st) => (
+                return (
+                  <div
+                    key={app.id}
+                    onClick={() => handleOpenDetail(app)}
+                    className={`p-2.5 sm:p-3 rounded-2xl ${bgStyle} border ${borderStyle} transition space-y-2 shadow-md relative cursor-pointer flex flex-col justify-between hover:scale-[1.01] active:scale-[0.99] group ${isMenuOpen ? 'z-40' : 'z-10'}`}
+                  >
+                    {/* 水印盖章效果 (OFFER 成功章 / REJECTED 失败章) */}
+                    {stampType === 'SUCCESS' && (
+                      <div className="absolute right-2 bottom-6 pointer-events-none select-none opacity-40 transform -rotate-12 border border-dashed border-emerald-400 text-emerald-200 bg-emerald-950/60 font-black tracking-widest text-[9px] px-1.5 py-0.2 rounded uppercase">
+                        OFFER
+                      </div>
+                    )}
+                    {stampType === 'FAILED' && (
+                      <div className="absolute right-2 bottom-6 pointer-events-none select-none opacity-45 transform -rotate-12 border border-dashed border-zinc-400 text-zinc-100 bg-zinc-950/85 font-black tracking-widest text-[9px] px-1.5 py-0.2 rounded uppercase">
+                        REJECTED
+                      </div>
+                    )}
+
+                    {/* 网格卡片顶部：星标 ⭐ + 评级 + 状态切换 */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-1">
+                        <div className="flex items-center gap-1">
                           <button
-                            key={st}
                             type="button"
-                            onClick={() => handleUpdateStatus(app.id, st)}
-                            className={`px-2 py-1 rounded-lg text-[11px] font-bold transition active:scale-95 ${
-                              app.status === st
-                                ? 'bg-slate-700 text-white shadow'
-                                : 'bg-slate-950 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                            onClick={(e) => handleToggleStar(app, e)}
+                            className={`p-1 rounded-lg transition ${
+                              isStarred
+                                ? 'text-amber-400 bg-amber-500/15 hover:bg-amber-500/25'
+                                : 'text-slate-500 hover:text-amber-400 hover:bg-slate-800'
                             }`}
+                            title={isStarred ? '取消特别关注' : '设为特别关注 ⭐'}
                           >
-                            {STATUS_LABELS[st].label}
+                            <Star className={`w-3.5 h-3.5 ${isStarred ? 'fill-amber-400 text-amber-400' : ''}`} />
                           </button>
-                        ))}
+                          {getRatingBadge(app.rating)}
+                        </div>
+
+                        {/* 右上角状态徽章 (点击可下拉选择) */}
+                        <div className="relative status-menu-container">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenStatusMenuId(isMenuOpen ? null : app.id);
+                            }}
+                            className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold border transition flex items-center gap-0.5 cursor-pointer ${statusMeta.color}`}
+                            title="点击更改状态"
+                          >
+                            <span>{statusMeta.icon}</span>
+                            <span className="hidden sm:inline">{statusMeta.label}</span>
+                            <ChevronDown className="w-2.5 h-2.5 opacity-70" />
+                          </button>
+
+                          {isMenuOpen && (
+                            <div className="absolute right-0 top-full mt-1 w-32 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
+                              {STATUS_SELECT_OPTIONS.map((opt) => (
+                                <button
+                                  key={opt.key}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleUpdateStatus(app.id, opt.key);
+                                  }}
+                                  className={`w-full px-2 py-1 text-left text-[11px] font-semibold flex items-center justify-between ${
+                                    app.status === opt.key
+                                      ? 'bg-blue-600/30 text-blue-300'
+                                      : 'text-slate-300 hover:bg-slate-800'
+                                  }`}
+                                >
+                                  <span>{opt.icon} {opt.label}</span>
+                                  {app.status === opt.key && <Check className="w-3 h-3 text-blue-400" />}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 公司名与职位 */}
+                      <div>
+                        <h4 className="text-xs sm:text-sm font-black text-slate-100 truncate" title={app.company_raw}>
+                          {app.company_raw}
+                        </h4>
+                        <p className="text-[11px] text-slate-300 line-clamp-2 leading-snug mt-0.5 font-medium" title={app.title_raw}>
+                          {app.title_raw}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 网格卡片底部：标签元数据 + 投递天数 */}
+                    <div className="pt-1.5 border-t border-slate-800/60 space-y-1">
+                      <div className="flex items-center gap-1 flex-wrap text-[10px]">
+                        <span className="px-1 py-0.2 rounded bg-slate-800 text-slate-300 font-bold">
+                          {app.contract_type || 'CDI'}
+                        </span>
+                        {app.work_mode && (
+                          <span className="px-1 py-0.2 rounded bg-purple-950/60 text-purple-300 font-semibold border border-purple-800/40">
+                            {app.work_mode === 'ONSITE' ? '现场' : app.work_mode === 'HYBRID' ? '混合' : '远程'}
+                          </span>
+                        )}
+                        {app.location && (
+                          <span className="text-slate-400 truncate max-w-[80px]" title={app.location}>
+                            📍 {app.location}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5">
+                        <span className="flex items-center gap-0.5">
+                          <Clock className="w-2.5 h-2.5 text-slate-500" />
+                          <span>{formatDaysAgo(app.applied_at)}</span>
+                        </span>
+                        <span className="text-blue-400 group-hover:underline text-[10px] font-semibold">
+                          详情 →
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -1542,6 +1314,25 @@ export default function HomePage() {
           )}
         </section>
       </main>
+
+      {/* 极速录入弹窗 (Modal) */}
+      <QuickAddModal
+        isOpen={isQuickAddOpen}
+        onClose={() => setIsQuickAddOpen(false)}
+        onSuccess={() => fetchApplications()}
+      />
+
+      {/* 网格模式岗位详情速览弹窗 */}
+      <JobDetailModal
+        isOpen={isDetailOpen}
+        onClose={() => setIsDetailOpen(false)}
+        job={detailJob}
+        onEdit={(job) => handleOpenEdit(job)}
+        onViewJd={(job) => handleOpenJdViewer(job)}
+        onToggleStar={handleToggleStar}
+        onUpdateStatus={handleUpdateStatus}
+        onDelete={handleDeleteApplication}
+      />
 
       {/* 全屏沉浸式 JD 阅读弹窗 */}
       <JdViewerModal

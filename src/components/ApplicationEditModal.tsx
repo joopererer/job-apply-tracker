@@ -96,7 +96,7 @@ export default function ApplicationEditModal({
       setIsStarred(Boolean(job.is_starred ?? job.isStarred));
       setLocation(job.location || '');
       setSalaryRange(job.salary_range || '');
-      setPostedAt(job.posted_at || '');
+      setPostedAt(job.posted_at ? job.posted_at.split('T')[0] : '');
       setAppliedAt(job.applied_at ? job.applied_at.slice(0, 10) : '');
       setCleanUrl(job.clean_url || '');
 
