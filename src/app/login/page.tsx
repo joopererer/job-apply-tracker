@@ -141,9 +141,11 @@ function LoginContent() {
       <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative z-10 backdrop-blur-md space-y-6 animate-in fade-in zoom-in-95 duration-200">
         {/* Logo 与标题 */}
         <div className="text-center space-y-2">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-sky-400 mx-auto flex items-center justify-center shadow-lg shadow-blue-500/25">
-            <Sparkles className="w-6 h-6 text-white" />
-          </div>
+          <img
+            src="/icons/icon-192.png"
+            alt="Logo"
+            className="w-12 h-12 rounded-2xl mx-auto object-cover shadow-lg shadow-blue-500/25"
+          />
           <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">
             {isRegister ? t('login.registerTitle') : t('login.loginTitle')}
           </h1>

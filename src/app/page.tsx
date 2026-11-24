@@ -600,9 +600,11 @@ export default function HomePage() {
         <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
           {/* Logo 区域 */}
           <div className="flex items-center gap-2.5 shrink-0">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-sky-400 flex items-center justify-center shadow-lg shadow-blue-500/20">
-              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-            </div>
+            <img
+              src="/icons/icon-192.png"
+              alt="Logo"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-cover shadow-lg shadow-blue-500/20"
+            />
             <div>
               <div className="flex items-center gap-1.5">
                 <h1 className="font-extrabold text-base sm:text-lg tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
