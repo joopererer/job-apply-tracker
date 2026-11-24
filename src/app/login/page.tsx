@@ -118,7 +118,12 @@ function LoginContent() {
       });
       if (error) throw error;
     } catch (err: any) {
-      setErrorMsg(err.message || t('login.googleFailed'));
+      const msg = err.message || '';
+      if (msg.includes('Unsupported provider') || msg.includes('not enabled') || msg.includes('validation_failed')) {
+        setErrorMsg(t('login.googleNotConfigured'));
+      } else {
+        setErrorMsg(err.message || t('login.googleFailed'));
+      }
     }
   };
 
@@ -140,10 +145,10 @@ function LoginContent() {
             <Sparkles className="w-6 h-6 text-white" />
           </div>
           <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">
-            {t('login.title')}
+            {isRegister ? t('login.registerTitle') : t('login.loginTitle')}
           </h1>
           <p className="text-xs sm:text-sm text-slate-400">
-            {isRegister ? t('login.subtitleRegister') : t('login.subtitleLogin')}
+            {isRegister ? t('login.registerSubtitle') : t('login.loginSubtitle')}
           </p>
         </div>
 
@@ -166,7 +171,7 @@ function LoginContent() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
             <label className="block text-xs font-semibold text-slate-300">
-              {t('login.emailLabel')}
+              {t('login.email')}
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
@@ -185,7 +190,7 @@ function LoginContent() {
 
           <div className="space-y-1">
             <label className="block text-xs font-semibold text-slate-300">
-              {t('login.passwordLabel')}
+              {t('login.password')}
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
@@ -196,7 +201,7 @@ function LoginContent() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder={t('login.passwordPlaceholder')}
                 className="w-full pl-10 pr-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
               />
             </div>
@@ -214,7 +219,7 @@ function LoginContent() {
               </>
             ) : (
               <>
-                <span>{isRegister ? t('login.submitRegister') : t('login.submitLogin')}</span>
+                <span>{isRegister ? t('login.btnSignUp') : t('login.btnSignIn')}</span>
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
@@ -260,7 +265,7 @@ function LoginContent() {
         <div className="text-center text-xs text-slate-400">
           {isRegister ? (
             <span>
-              {t('login.haveAccount')}{' '}
+              {t('login.hasAccount')}{' '}
               <button
                 type="button"
                 onClick={() => {
@@ -270,7 +275,7 @@ function LoginContent() {
                 }}
                 className="text-blue-400 hover:text-blue-300 font-bold underline cursor-pointer"
               >
-                {t('login.loginDirectly')}
+                {t('login.toLogin')}
               </button>
             </span>
           ) : (
@@ -285,7 +290,7 @@ function LoginContent() {
                 }}
                 className="text-blue-400 hover:text-blue-300 font-bold underline cursor-pointer"
               >
-                {t('login.registerFree')}
+                {t('login.toRegister')}
               </button>
             </span>
           )}
@@ -294,7 +299,7 @@ function LoginContent() {
         {/* 底部安全说明 */}
         <div className="pt-2 border-t border-slate-800/80 flex items-center justify-center gap-1.5 text-[11px] text-slate-500">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-          <span>{t('login.rlsNotice')}</span>
+          <span>{t('login.securityNote')}</span>
         </div>
       </div>
     </div>

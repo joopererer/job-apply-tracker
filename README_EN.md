@@ -263,3 +263,4 @@ This project is open-source under the [MIT License](LICENSE).
 
 Best of luck to all candidates navigating the recruitment market in France!  
 *Bon courage dans votre recherche d'emploi en France !* 🇫🇷🚀
+

@@ -185,6 +185,13 @@ export interface Dictionary {
     toLogin: string;
     securityNote: string;
     verifyingAuth: string;
+    emailPasswordRequired: string;
+    pwdMinLength: string;
+    regSuccessEmailConfirm: string;
+    opFailed: string;
+    googleFailed: string;
+    googleNotConfigured: string;
+    processing: string;
   };
   account: {
     title: string;
@@ -405,6 +412,13 @@ export const dictionaries: Record<Locale, Dictionary> = {
       toLogin: '直接登录',
       securityNote: '全链路 Row Level Security 数据隔离 · 隐私安全保障',
       verifyingAuth: '正在验证登录身份...',
+      emailPasswordRequired: '请完整输入邮箱地址与登录密码',
+      pwdMinLength: '密码长度至少需 6 位字符',
+      regSuccessEmailConfirm: '注册成功！请查收验证邮件完成激活后再登录。',
+      opFailed: '操作失败，请重试',
+      googleFailed: 'Google 登录失败',
+      googleNotConfigured: 'Google OAuth 未在 Supabase 控制台启用。请在 Supabase 后端开启 Google Provider，或者直接使用邮箱密码注册/登录。',
+      processing: '处理中...',
     },
     account: {
       title: '账号与安全设置',
@@ -623,6 +637,13 @@ export const dictionaries: Record<Locale, Dictionary> = {
       toLogin: 'Se connecter',
       securityNote: 'Isolation totale des données avec Row Level Security · Confidentialité garantie',
       verifyingAuth: 'Vérification de la session...',
+      emailPasswordRequired: 'Veuillez saisir votre e-mail et mot de passe',
+      pwdMinLength: 'Le mot de passe doit comporter au moins 6 caractères',
+      regSuccessEmailConfirm: 'Inscription réussie ! Veuillez vérifier vos e-mails pour activer votre compte.',
+      opFailed: 'Échec de l’opération, veuillez réessayer',
+      googleFailed: 'Échec de la connexion avec Google',
+      googleNotConfigured: 'Google OAuth n’est pas activé dans votre console Supabase. Veuillez activer le fournisseur Google ou vous connecter par e-mail et mot de passe.',
+      processing: 'Traitement en cours...',
     },
     account: {
       title: 'Paramètres du compte & Sécurité',
@@ -841,6 +862,13 @@ export const dictionaries: Record<Locale, Dictionary> = {
       toLogin: 'Sign in directly',
       securityNote: 'Full Row Level Security Data Isolation · Privacy Guaranteed',
       verifyingAuth: 'Verifying session...',
+      emailPasswordRequired: 'Please enter your email and password',
+      pwdMinLength: 'Password must be at least 6 characters',
+      regSuccessEmailConfirm: 'Registration successful! Please check your email to confirm your account.',
+      opFailed: 'Operation failed, please try again',
+      googleFailed: 'Google sign-in failed',
+      googleNotConfigured: 'Google OAuth is not enabled in your Supabase dashboard. Please enable Google Provider in Supabase, or sign up / sign in with email and password.',
+      processing: 'Processing...',
     },
     account: {
       title: 'Account & Security Settings',
