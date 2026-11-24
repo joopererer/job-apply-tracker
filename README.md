@@ -2,6 +2,8 @@
 
 > 专为在法留学生与工程师打造的现代化求职管理雷达 · 零 Token 本地确定性爬虫 · 三级智能防重查重 · 多用户 RLS 数据隔离 · 移动端 PWA 系统分享直达录入 · HR 来电急救反查
 
+[中文](README.md) | [English](README_EN.md)
+
 ![Next.js](https://img.shields.io/badge/Next.js-16.4-black.svg)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue.svg)
 ![TailwindCSS](https://img.shields.io/badge/TailwindCSS-v4-38bdf8.svg)
@@ -256,7 +258,8 @@ fr-job-tracker/
 │       ├── i18n/                  # 中法英三语国际化字典 (dictionaries.ts) 与全局 Provider
 │       ├── scraper/               # 零 Token 正则清洗、薪资地点规范化与特征哈希
 │       └── supabase.ts            # Supabase 客户端与 TypeScript 数据契约
-└── README.md
+├── README.md                      # 中文说明文档
+└── README_EN.md                   # English Documentation
 ```
 
 ---
