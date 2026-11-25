@@ -422,7 +422,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
       passRateTooltip: '推进数({passed}) / 有效投递数({effective})：排除「未投递」「已投递」和「被拒」后，进入面试或获得 Offer 的比例',
     },
     search: {
-      placeholder: '☎️ HR 来电闪电反查：输入电话、公司名、职位、HR姓名、JD关键词... (⌘K)',
+      placeholder: '☎️ 闪电反查：电话、公司、职位、HR、JD 关键词',
       clear: '清空搜索',
       matchedCount: '共匹配到 {count} 条相关记录',
     },
@@ -801,7 +801,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
       passRateTooltip: 'Avancées ({passed}) / Actives ({effective}) : proportion en entretien RH, technique ou offre',
     },
     search: {
-      placeholder: '☎️ Appel RH urgent : téléphone, entreprise, poste, nom RH, mot-clé... (⌘K)',
+      placeholder: '☎️ Recherche RH : tél, entreprise, poste, RH, JD',
       clear: 'Effacer',
       matchedCount: '{count} candidature(s) trouvée(s)',
     },
@@ -1180,7 +1180,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
       passRateTooltip: 'Passed ({passed}) / Active ({effective}): Share advancing to interviews or offers',
     },
     search: {
-      placeholder: '☎️ Flash HR Lookup: search phone, company, title, HR name, JD keywords... (⌘K)',
+      placeholder: '☎️ HR Lookup: phone, company, title, HR, JD',
       clear: 'Clear search',
       matchedCount: '{count} matching application(s) found',
     },

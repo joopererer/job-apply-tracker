@@ -597,103 +597,100 @@ export default function HomePage() {
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-blue-600 selection:text-white">
       {/* 顶部 Brand Header 与统计指标 */}
       <header className="sticky top-0 z-30 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-3 py-2 sm:px-6 sm:py-2.5">
-        <div className="max-w-5xl mx-auto flex items-start sm:items-center justify-between gap-2 sm:gap-3">
-          {/* 左侧：Logo + 标题 + 语言下拉切换器（位于标题下方） */}
-          <div className="flex items-start gap-2 sm:gap-2.5 shrink-0">
+        <div className="max-w-5xl mx-auto grid grid-cols-[auto_1fr] items-center gap-x-2 sm:gap-x-3 gap-y-1.5">
+          {/* 第 1 行左侧：Logo + 标题 */}
+          <div className="flex items-center gap-2 shrink-0">
             <img
               src="/icons/icon-192.png"
               alt="Logo"
-              className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-cover shadow-lg shadow-blue-500/20 mt-0.5 sm:mt-0"
+              className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl object-cover shadow-lg shadow-blue-500/20"
             />
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-1">
-                <h1 className="font-extrabold text-sm sm:text-lg tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent leading-tight">
-                  {t('header.title')}
-                </h1>
-                <span className="text-xs sm:text-sm">🇫🇷</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <LanguageSwitcher />
-                <p className="text-[11px] text-slate-400 hidden lg:block">
-                  {t('header.subtitle')}
-                </p>
-              </div>
+            <div className="flex items-center gap-1">
+              <h1 className="font-extrabold text-sm sm:text-lg tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent leading-tight">
+                {t('header.title')}
+              </h1>
+              <span className="text-xs sm:text-sm">🇫🇷</span>
             </div>
           </div>
 
-          {/* 右侧：统计指标（总计/回复率/通过率 始终一行） + 录入岗位按钮 & 账号按钮 */}
-          <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1.5 sm:gap-2.5 min-w-0">
-            {/* 第一行（移动端）：总计、回复率、通过率 一行紧凑展示 */}
-            <div className="flex items-center gap-1 sm:gap-1.5 flex-nowrap text-[10px] sm:text-xs">
-              {/* 总岗位 */}
-              <div
-                className="px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg bg-slate-800/80 border border-slate-700/80 flex items-center gap-1 whitespace-nowrap"
-                title={t('stats.totalTooltip', { total: stats.total, effective: stats.effectiveApplied, saved: stats.saved })}
-              >
-                <span className="text-slate-400">{t('stats.total')}:</span>
-                <strong className="text-blue-400 font-bold">{stats.total}</strong>
-              </div>
-
-              {/* 未投递微标 (桌面端大于0时显示) */}
-              {stats.saved > 0 && (
-                <div
-                  className="px-2 py-1 rounded-lg bg-amber-950/60 border border-amber-800/60 items-center gap-1 hidden md:flex whitespace-nowrap"
-                  title={t('stats.savedTooltip')}
-                >
-                  <span className="text-amber-400 font-bold">📌 {t('stats.saved')}:</span>
-                  <strong className="text-amber-300 font-bold">{stats.saved}</strong>
-                </div>
-              )}
-
-              {/* 回复率核心指标 */}
-              <div
-                className="px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg bg-emerald-950/60 border border-emerald-800/60 flex items-center gap-1 cursor-help whitespace-nowrap"
-                title={t('stats.replyRateTooltip', { replied: stats.replied, effective: stats.effectiveApplied })}
-              >
-                <Flame className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400 shrink-0" />
-                <span className="text-emerald-300">{t('stats.replyRate')}:</span>
-                <strong className="text-emerald-400 font-bold">
-                  {stats.effectiveApplied > 0 ? `${stats.replyRate}%` : '—'}
-                </strong>
-              </div>
-
-              {/* 通过率核心指标 */}
-              <div
-                className="px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg bg-indigo-950/60 border border-indigo-800/60 flex items-center gap-1 cursor-help whitespace-nowrap"
-                title={t('stats.passRateTooltip', { passed: stats.passed, effective: stats.effectiveApplied })}
-              >
-                <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-indigo-400 shrink-0" />
-                <span className="text-indigo-300">{t('stats.passRate')}:</span>
-                <strong className="text-indigo-400 font-bold">
-                  {stats.effectiveApplied > 0 ? `${stats.passRate}%` : '—'}
-                </strong>
-              </div>
+          {/* 第 1 行右侧：统计指标（总计/回复率/通过率 始终一行紧凑） */}
+          <div className="flex items-center gap-1 sm:gap-1.5 flex-nowrap justify-self-end text-[10px] sm:text-xs">
+            {/* 总岗位 */}
+            <div
+              className="px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg bg-slate-800/80 border border-slate-700/80 flex items-center gap-1 whitespace-nowrap"
+              title={t('stats.totalTooltip', { total: stats.total, effective: stats.effectiveApplied, saved: stats.saved })}
+            >
+              <span className="text-slate-400">{t('stats.total')}:</span>
+              <strong className="text-blue-400 font-bold">{stats.total}</strong>
             </div>
 
-            {/* 第二行（移动端）：录入按钮（移动端简化仅保留+图标） + 用户账号按钮 */}
-            <div className="flex items-center gap-1.5 sm:gap-2 justify-end">
-              <button
-                type="button"
-                onClick={() => setIsQuickAddOpen(true)}
-                title={t('header.addJob')}
-                className="py-1 sm:py-1.5 px-2.5 sm:px-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center gap-1 transition shadow-lg shadow-blue-500/25 shrink-0 cursor-pointer"
+            {/* 未投递微标 (桌面端大于0时显示) */}
+            {stats.saved > 0 && (
+              <div
+                className="px-2 py-1 rounded-lg bg-amber-950/60 border border-amber-800/60 items-center gap-1 hidden md:flex whitespace-nowrap"
+                title={t('stats.savedTooltip')}
               >
-                <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">{t('header.addJob')}</span>
-              </button>
+                <span className="text-amber-400 font-bold">📌 {t('stats.saved')}:</span>
+                <strong className="text-amber-300 font-bold">{stats.saved}</strong>
+              </div>
+            )}
 
-              <button
-                type="button"
-                onClick={() => setIsAccountModalOpen(true)}
-                className="py-1 sm:py-1.5 px-2 sm:px-3 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700/80 active:scale-95 text-slate-200 font-semibold text-xs sm:text-sm flex items-center gap-1.5 transition shrink-0 cursor-pointer"
-                title={t('account.title')}
-              >
-                <UserIcon className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                <span className="max-w-[72px] sm:max-w-[120px] truncate">
-                  {currentUser?.email ? currentUser.email.split('@')[0] : t('header.userAccount')}
-                </span>
-              </button>
+            {/* 回复率核心指标 */}
+            <div
+              className="px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg bg-emerald-950/60 border border-emerald-800/60 flex items-center gap-1 cursor-help whitespace-nowrap"
+              title={t('stats.replyRateTooltip', { replied: stats.replied, effective: stats.effectiveApplied })}
+            >
+              <Flame className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400 shrink-0" />
+              <span className="text-emerald-300">{t('stats.replyRate')}:</span>
+              <strong className="text-emerald-400 font-bold">
+                {stats.effectiveApplied > 0 ? `${stats.replyRate}%` : '—'}
+              </strong>
             </div>
+
+            {/* 通过率核心指标 */}
+            <div
+              className="px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg bg-indigo-950/60 border border-indigo-800/60 flex items-center gap-1 cursor-help whitespace-nowrap"
+              title={t('stats.passRateTooltip', { passed: stats.passed, effective: stats.effectiveApplied })}
+            >
+              <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-indigo-400 shrink-0" />
+              <span className="text-indigo-300">{t('stats.passRate')}:</span>
+              <strong className="text-indigo-400 font-bold">
+                {stats.effectiveApplied > 0 ? `${stats.passRate}%` : '—'}
+              </strong>
+            </div>
+          </div>
+
+          {/* 第 2 行左侧：语言下拉切换器（与右侧 + 按钮水平中线严格对齐） */}
+          <div className="flex items-center gap-2 justify-self-start">
+            <LanguageSwitcher />
+            <p className="text-[11px] text-slate-400 hidden lg:block">
+              {t('header.subtitle')}
+            </p>
+          </div>
+
+          {/* 第 2 行右侧：录入按钮（移动端仅保留+图标） + 用户账号按钮 */}
+          <div className="flex items-center gap-1.5 sm:gap-2 justify-self-end">
+            <button
+              type="button"
+              onClick={() => setIsQuickAddOpen(true)}
+              title={t('header.addJob')}
+              className="py-1 sm:py-1.5 px-2.5 sm:px-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center gap-1 transition shadow-lg shadow-blue-500/25 shrink-0 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">{t('header.addJob')}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsAccountModalOpen(true)}
+              className="py-1 sm:py-1.5 px-2 sm:px-3 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700/80 active:scale-95 text-slate-200 font-semibold text-xs sm:text-sm flex items-center gap-1.5 transition shrink-0 cursor-pointer"
+              title={t('account.title')}
+            >
+              <UserIcon className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              <span className="max-w-[80px] sm:max-w-[120px] truncate">
+                {currentUser?.email ? currentUser.email.split('@')[0] : t('header.userAccount')}
+              </span>
+            </button>
           </div>
         </div>
       </header>
@@ -705,7 +702,7 @@ export default function HomePage() {
         {/* ============================================================== */}
         <section className="space-y-1.5">
           <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+            <div className="absolute inset-y-0 left-0 pl-3 sm:pl-3.5 flex items-center pointer-events-none">
               <PhoneCall className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
             </div>
             <input
@@ -714,7 +711,7 @@ export default function HomePage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('search.placeholder')}
-              className="w-full pl-10 sm:pl-11 pr-20 py-2.5 sm:py-3 bg-slate-900/90 border border-amber-500/40 focus:border-amber-400 focus:ring-2 focus:ring-amber-500/20 rounded-2xl text-xs sm:text-sm text-slate-100 placeholder-slate-400 shadow-xl transition"
+              className="w-full pl-9 sm:pl-11 pr-9 sm:pr-14 py-2 sm:py-2.5 bg-slate-900/90 border border-amber-500/40 focus:border-amber-400 focus:ring-2 focus:ring-amber-500/20 rounded-2xl text-xs sm:text-sm text-slate-100 placeholder-slate-400 shadow-xl transition"
             />
             <div className="absolute inset-y-0 right-3 flex items-center gap-1.5">
               {searchQuery ? (
@@ -748,20 +745,17 @@ export default function HomePage() {
         {/* ============================================================== */}
         {/* 底部「多维过滤、视图切换、状态 Tab 与列表/网格渲染」 */}
         {/* ============================================================== */}
-        <section className="space-y-3">
-          {/* 多维快捷筛选工具栏 + 视图模式切换 */}
-          <div className="p-2.5 sm:p-3 rounded-2xl bg-slate-900/80 border border-slate-800 text-xs flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-              <span className="text-slate-400 font-bold flex items-center gap-1">
-                <Filter className="w-3.5 h-3.5 text-blue-400" />
-                {t('filter.title')}:
-              </span>
+        <section className="space-y-2.5">
+          {/* 多维快捷筛选工具栏 + 视图模式切换 (单行紧凑，列表/网格靠右) */}
+          <div className="p-2 sm:p-2.5 rounded-2xl bg-slate-900/80 border border-slate-800 text-[11px] sm:text-xs flex items-center justify-between gap-1.5">
+            <div className="flex items-center gap-1.5 flex-1 min-w-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+              <Filter className="w-3.5 h-3.5 text-blue-400 shrink-0" />
 
               {/* 平台筛选 */}
               <select
                 value={filterPlatform}
                 onChange={(e) => setFilterPlatform(e.target.value)}
-                className="px-2 py-1 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 font-semibold focus:outline-none focus:border-blue-500 cursor-pointer"
+                className="px-1.5 sm:px-2 py-1 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 font-semibold focus:outline-none focus:border-blue-500 cursor-pointer shrink-0"
               >
                 <option value="ALL">{t('filter.allPlatforms', { count: platformStats.counts.ALL || 0 })}</option>
                 {platformStats.platforms.map((p) => (
@@ -783,7 +777,7 @@ export default function HomePage() {
               <select
                 value={filterMinRating}
                 onChange={(e) => setFilterMinRating(e.target.value)}
-                className="px-2 py-1 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 font-semibold focus:outline-none focus:border-blue-500 cursor-pointer"
+                className="px-1.5 sm:px-2 py-1 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 font-semibold focus:outline-none focus:border-blue-500 cursor-pointer shrink-0"
               >
                 <option value="ALL">{t('filter.allRatings')}</option>
                 <option value="S+">{t('filter.ratingSPlus')}</option>
@@ -798,7 +792,7 @@ export default function HomePage() {
               <select
                 value={filterContract}
                 onChange={(e) => setFilterContract(e.target.value)}
-                className="px-2 py-1 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 font-semibold focus:outline-none focus:border-blue-500 cursor-pointer"
+                className="px-1.5 sm:px-2 py-1 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 font-semibold focus:outline-none focus:border-blue-500 cursor-pointer shrink-0"
               >
                 <option value="ALL">{t('filter.allContracts')}</option>
                 <option value="CDI">CDI</option>
@@ -812,14 +806,15 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => setFilterStarredOnly((v) => !v)}
-                className={`px-2 py-1 rounded-lg border font-bold transition flex items-center gap-1 ${
+                title={t('filter.starredOnly')}
+                className={`px-2 py-1 rounded-lg border font-bold transition flex items-center gap-1 shrink-0 cursor-pointer ${
                   filterStarredOnly
                     ? 'bg-amber-500/20 text-amber-300 border-amber-500 shadow-sm shadow-amber-500/20'
                     : 'bg-slate-950 text-slate-400 border-slate-700 hover:text-slate-200'
                 }`}
               >
                 <Star className={`w-3.5 h-3.5 ${filterStarredOnly ? 'text-amber-400 fill-amber-400' : 'text-slate-500'}`} />
-                <span>{t('filter.starredOnly')}</span>
+                <span className="hidden sm:inline">{t('filter.starredOnly')}</span>
               </button>
 
               {/* 重置筛选 */}
@@ -832,20 +827,21 @@ export default function HomePage() {
                     setFilterContract('ALL');
                     setFilterStarredOnly(false);
                   }}
-                  className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition font-medium flex items-center gap-1"
+                  title={t('filter.reset')}
+                  className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition font-medium flex items-center gap-1 shrink-0 cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
-                  <span>{t('filter.reset')}</span>
+                  <span className="hidden sm:inline">{t('filter.reset')}</span>
                 </button>
               )}
             </div>
 
-            {/* 视图模式切换：列表 (List) 与 紧凑网格 (Grid) */}
-            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 ml-auto">
+            {/* 视图模式切换：列表 (List) 与 紧凑网格 (Grid) 置于同一行末尾 */}
+            <div className="flex items-center gap-0.5 bg-slate-950 p-0.5 rounded-xl border border-slate-800 shrink-0">
               <button
                 type="button"
                 onClick={() => setViewMode('list')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                className={`px-2 sm:px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
                   viewMode === 'list'
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-slate-400 hover:text-slate-200'
@@ -853,12 +849,12 @@ export default function HomePage() {
                 title={t('filter.listView')}
               >
                 <LayoutList className="w-3.5 h-3.5" />
-                <span>{t('filter.list')}</span>
+                <span className="hidden sm:inline">{t('filter.list')}</span>
               </button>
               <button
                 type="button"
                 onClick={() => setViewMode('grid')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                className={`px-2 sm:px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
                   viewMode === 'grid'
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-slate-400 hover:text-slate-200'
@@ -866,7 +862,7 @@ export default function HomePage() {
                 title={t('filter.gridView')}
               >
                 <LayoutGrid className="w-3.5 h-3.5" />
-                <span>{t('filter.grid')}</span>
+                <span className="hidden sm:inline">{t('filter.grid')}</span>
               </button>
             </div>
           </div>
