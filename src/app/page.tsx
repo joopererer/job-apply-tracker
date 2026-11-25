@@ -596,99 +596,104 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-blue-600 selection:text-white">
       {/* 顶部 Brand Header 与统计指标 */}
-      <header className="sticky top-0 z-30 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-3 py-2.5 sm:px-6">
-        <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
-          {/* Logo 区域 */}
-          <div className="flex items-center gap-2.5 shrink-0">
+      <header className="sticky top-0 z-30 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-3 py-2 sm:px-6 sm:py-2.5">
+        <div className="max-w-5xl mx-auto flex items-start sm:items-center justify-between gap-2 sm:gap-3">
+          {/* 左侧：Logo + 标题 + 语言下拉切换器（位于标题下方） */}
+          <div className="flex items-start gap-2 sm:gap-2.5 shrink-0">
             <img
               src="/icons/icon-192.png"
               alt="Logo"
-              className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-cover shadow-lg shadow-blue-500/20"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-cover shadow-lg shadow-blue-500/20 mt-0.5 sm:mt-0"
             />
-            <div>
-              <div className="flex items-center gap-1.5">
-                <h1 className="font-extrabold text-base sm:text-lg tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-1">
+                <h1 className="font-extrabold text-sm sm:text-lg tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent leading-tight">
                   {t('header.title')}
                 </h1>
-                <span className="text-sm">🇫🇷</span>
+                <span className="text-xs sm:text-sm">🇫🇷</span>
               </div>
-              <p className="text-[11px] text-slate-400 hidden md:block">
-                {t('header.subtitle')}
-              </p>
+              <div className="flex items-center gap-2">
+                <LanguageSwitcher />
+                <p className="text-[11px] text-slate-400 hidden lg:block">
+                  {t('header.subtitle')}
+                </p>
+              </div>
             </div>
           </div>
 
-          {/* 顶部统计指标栏：总数、回复率、通过率 + 语言切换 + 「+ 录入岗位」按钮 */}
-          <div className="flex items-center gap-2 sm:gap-2.5 text-xs flex-wrap justify-end">
-            {/* 总岗位 */}
-            <div
-              className="px-2 py-1 rounded-lg bg-slate-800/80 border border-slate-700/80 flex items-center gap-1.5"
-              title={t('stats.totalTooltip', { total: stats.total, effective: stats.effectiveApplied, saved: stats.saved })}
-            >
-              <span className="text-slate-400">{t('stats.total')}:</span>
-              <strong className="text-blue-400 font-bold">{stats.total}</strong>
-            </div>
-
-            {/* 未投递微标 (大于0时显示) */}
-            {stats.saved > 0 && (
+          {/* 右侧：统计指标（总计/回复率/通过率 始终一行） + 录入岗位按钮 & 账号按钮 */}
+          <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1.5 sm:gap-2.5 min-w-0">
+            {/* 第一行（移动端）：总计、回复率、通过率 一行紧凑展示 */}
+            <div className="flex items-center gap-1 sm:gap-1.5 flex-nowrap text-[10px] sm:text-xs">
+              {/* 总岗位 */}
               <div
-                className="px-2 py-1 rounded-lg bg-amber-950/60 border border-amber-800/60 items-center gap-1.5 hidden sm:flex"
-                title={t('stats.savedTooltip')}
+                className="px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg bg-slate-800/80 border border-slate-700/80 flex items-center gap-1 whitespace-nowrap"
+                title={t('stats.totalTooltip', { total: stats.total, effective: stats.effectiveApplied, saved: stats.saved })}
               >
-                <span className="text-amber-400 font-bold">📌 {t('stats.saved')}:</span>
-                <strong className="text-amber-300 font-bold">{stats.saved}</strong>
+                <span className="text-slate-400">{t('stats.total')}:</span>
+                <strong className="text-blue-400 font-bold">{stats.total}</strong>
               </div>
-            )}
 
-            {/* 回复率核心指标 */}
-            <div
-              className="px-2.5 py-1 rounded-lg bg-emerald-950/60 border border-emerald-800/60 flex items-center gap-1.5 cursor-help"
-              title={t('stats.replyRateTooltip', { replied: stats.replied, effective: stats.effectiveApplied })}
-            >
-              <Flame className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-emerald-300">{t('stats.replyRate')}:</span>
-              <strong className="text-emerald-400 font-bold">
-                {stats.effectiveApplied > 0 ? `${stats.replyRate}%` : '—'}
-              </strong>
+              {/* 未投递微标 (桌面端大于0时显示) */}
+              {stats.saved > 0 && (
+                <div
+                  className="px-2 py-1 rounded-lg bg-amber-950/60 border border-amber-800/60 items-center gap-1 hidden md:flex whitespace-nowrap"
+                  title={t('stats.savedTooltip')}
+                >
+                  <span className="text-amber-400 font-bold">📌 {t('stats.saved')}:</span>
+                  <strong className="text-amber-300 font-bold">{stats.saved}</strong>
+                </div>
+              )}
+
+              {/* 回复率核心指标 */}
+              <div
+                className="px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg bg-emerald-950/60 border border-emerald-800/60 flex items-center gap-1 cursor-help whitespace-nowrap"
+                title={t('stats.replyRateTooltip', { replied: stats.replied, effective: stats.effectiveApplied })}
+              >
+                <Flame className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400 shrink-0" />
+                <span className="text-emerald-300">{t('stats.replyRate')}:</span>
+                <strong className="text-emerald-400 font-bold">
+                  {stats.effectiveApplied > 0 ? `${stats.replyRate}%` : '—'}
+                </strong>
+              </div>
+
+              {/* 通过率核心指标 */}
+              <div
+                className="px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg bg-indigo-950/60 border border-indigo-800/60 flex items-center gap-1 cursor-help whitespace-nowrap"
+                title={t('stats.passRateTooltip', { passed: stats.passed, effective: stats.effectiveApplied })}
+              >
+                <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-indigo-400 shrink-0" />
+                <span className="text-indigo-300">{t('stats.passRate')}:</span>
+                <strong className="text-indigo-400 font-bold">
+                  {stats.effectiveApplied > 0 ? `${stats.passRate}%` : '—'}
+                </strong>
+              </div>
             </div>
 
-            {/* 通过率核心指标 */}
-            <div
-              className="px-2.5 py-1 rounded-lg bg-indigo-950/60 border border-indigo-800/60 flex items-center gap-1.5 cursor-help"
-              title={t('stats.passRateTooltip', { passed: stats.passed, effective: stats.effectiveApplied })}
-            >
-              <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" />
-              <span className="text-indigo-300">{t('stats.passRate')}:</span>
-              <strong className="text-indigo-400 font-bold">
-                {stats.effectiveApplied > 0 ? `${stats.passRate}%` : '—'}
-              </strong>
+            {/* 第二行（移动端）：录入按钮（移动端简化仅保留+图标） + 用户账号按钮 */}
+            <div className="flex items-center gap-1.5 sm:gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => setIsQuickAddOpen(true)}
+                title={t('header.addJob')}
+                className="py-1 sm:py-1.5 px-2.5 sm:px-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center gap-1 transition shadow-lg shadow-blue-500/25 shrink-0 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">{t('header.addJob')}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsAccountModalOpen(true)}
+                className="py-1 sm:py-1.5 px-2 sm:px-3 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700/80 active:scale-95 text-slate-200 font-semibold text-xs sm:text-sm flex items-center gap-1.5 transition shrink-0 cursor-pointer"
+                title={t('account.title')}
+              >
+                <UserIcon className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                <span className="max-w-[72px] sm:max-w-[120px] truncate">
+                  {currentUser?.email ? currentUser.email.split('@')[0] : t('header.userAccount')}
+                </span>
+              </button>
             </div>
-
-            {/* 语言切换器 */}
-            <LanguageSwitcher />
-
-            {/* 极速录入按钮 (弹窗触发) */}
-            <button
-              type="button"
-              onClick={() => setIsQuickAddOpen(true)}
-              className="py-1.5 px-3 sm:px-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center gap-1.5 transition shadow-lg shadow-blue-500/25 shrink-0 cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>{t('header.addJob')}</span>
-            </button>
-
-            {/* 用户账号设置按钮 */}
-            <button
-              type="button"
-              onClick={() => setIsAccountModalOpen(true)}
-              className="py-1.5 px-2.5 sm:px-3 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700/80 active:scale-95 text-slate-200 font-semibold text-xs sm:text-sm flex items-center gap-1.5 transition shrink-0 cursor-pointer"
-              title={t('account.title')}
-            >
-              <UserIcon className="w-3.5 h-3.5 text-blue-400" />
-              <span className="max-w-[70px] sm:max-w-[120px] truncate">
-                {currentUser?.email ? currentUser.email.split('@')[0] : t('header.userAccount')}
-              </span>
-            </button>
           </div>
         </div>
       </header>

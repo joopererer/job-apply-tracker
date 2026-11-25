@@ -237,7 +237,7 @@ export default function ApplicationEditModal({
                 required
                 value={companyRaw}
                 onChange={(e) => setCompanyRaw(e.target.value)}
-                placeholder="如: Doctolib, VISIAN"
+                placeholder="Doctolib, VISIAN"
                 className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs sm:text-sm text-slate-100 focus:outline-none focus:border-blue-500 transition"
               />
             </div>
@@ -250,7 +250,7 @@ export default function ApplicationEditModal({
                 required
                 value={titleRaw}
                 onChange={(e) => setTitleRaw(e.target.value)}
-                placeholder="如: Développeur Fullstack Flutter (H/F)"
+                placeholder="Développeur Fullstack (H/F)"
                 className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs sm:text-sm text-slate-100 focus:outline-none focus:border-blue-500 transition"
               />
             </div>
@@ -389,7 +389,7 @@ export default function ApplicationEditModal({
                 type="text"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
-                placeholder="如: Paris (75)"
+                placeholder="Paris (75)"
                 className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-blue-500"
               />
             </div>
@@ -401,7 +401,7 @@ export default function ApplicationEditModal({
                 type="text"
                 value={salaryRange}
                 onChange={(e) => setSalaryRange(e.target.value)}
-                placeholder="如: 45k - 55k €"
+                placeholder="45k - 55k €"
                 className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-blue-500"
               />
             </div>
@@ -413,7 +413,7 @@ export default function ApplicationEditModal({
                 type="text"
                 value={postedAt}
                 onChange={(e) => setPostedAt(e.target.value)}
-                placeholder="如: 2026-10-25"
+                placeholder="2026-10-25"
                 className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-blue-500"
               />
             </div>
@@ -452,7 +452,7 @@ export default function ApplicationEditModal({
                 type="text"
                 value={hrContact}
                 onChange={(e) => setHrContact(e.target.value)}
-                placeholder="如: Marie · 06 12 34 56 78"
+                placeholder="Marie · 06 12 34 56 78"
                 className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-blue-500"
               />
             </div>
@@ -484,7 +484,7 @@ export default function ApplicationEditModal({
               rows={8}
               value={jdContent}
               onChange={(e) => setJdContent(e.target.value)}
-              placeholder="在此粘贴或修改职位正文内容..."
+              placeholder="Job description text..."
               className="w-full p-3 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 font-mono leading-relaxed focus:outline-none focus:border-blue-500 transition"
             />
           </div>

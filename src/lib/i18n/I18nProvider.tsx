@@ -109,50 +109,22 @@ export function useI18n() {
 }
 
 /**
- * 语言切换按钮组件 (用于 Header 顶部)
+ * 语言切换下拉选择组件 (用于 Header / 登录页 / 分享页)
  */
-export function LanguageSwitcher() {
+export function LanguageSwitcher({ className = '' }: { className?: string }) {
   const { locale, setLocale } = useI18n();
 
   return (
-    <div className="inline-flex items-center rounded-xl bg-slate-800/80 border border-slate-700/80 p-0.5 text-xs text-slate-300">
-      <button
-        type="button"
-        onClick={() => setLocale('zh')}
-        className={`px-2 py-1 rounded-lg font-bold transition cursor-pointer ${
-          locale === 'zh'
-            ? 'bg-blue-600 text-white shadow-sm'
-            : 'hover:text-white text-slate-400'
-        }`}
-        title="切换为中文"
-      >
-        中文
-      </button>
-      <button
-        type="button"
-        onClick={() => setLocale('fr')}
-        className={`px-2 py-1 rounded-lg font-bold transition cursor-pointer ${
-          locale === 'fr'
-            ? 'bg-blue-600 text-white shadow-sm'
-            : 'hover:text-white text-slate-400'
-        }`}
-        title="Passer en Français"
-      >
-        FR
-      </button>
-      <button
-        type="button"
-        onClick={() => setLocale('en')}
-        className={`px-2 py-1 rounded-lg font-bold transition cursor-pointer ${
-          locale === 'en'
-            ? 'bg-blue-600 text-white shadow-sm'
-            : 'hover:text-white text-slate-400'
-        }`}
-        title="Switch to English"
-      >
-        EN
-      </button>
-    </div>
+    <select
+      value={locale}
+      onChange={(e) => setLocale(e.target.value as Locale)}
+      aria-label="Language"
+      className={`px-2 py-1 rounded-lg bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700/80 text-slate-200 text-[11px] sm:text-xs font-semibold cursor-pointer focus:outline-none focus:border-blue-500 transition ${className}`}
+    >
+      <option value="zh">🇨🇳 中文</option>
+      <option value="fr">🇫🇷 FR</option>
+      <option value="en">🇬🇧 EN</option>
+    </select>
   );
 }
 

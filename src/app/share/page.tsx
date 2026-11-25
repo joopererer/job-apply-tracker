@@ -455,7 +455,7 @@ function ShareContent() {
                     <input
                       type="text"
                       value={location}
-                      placeholder="如: Paris, Remote"
+                      placeholder="Paris, Remote"
                       onChange={(e) => setLocation(e.target.value)}
                       className="w-full pl-8 pr-2 py-1.5 bg-slate-800/80 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500"
                     />
@@ -469,7 +469,7 @@ function ShareContent() {
                   <input
                     type="text"
                     value={salaryRange}
-                    placeholder="如: 45k - 55k €"
+                    placeholder="45k - 55k €"
                     onChange={(e) => setSalaryRange(e.target.value)}
                     className="w-full px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500"
                   />
@@ -483,7 +483,7 @@ function ShareContent() {
                 <input
                   type="text"
                   value={postedAt}
-                  placeholder="如: 2026-10-25"
+                  placeholder="2026-10-25"
                   onChange={(e) => setPostedAt(e.target.value)}
                   className="w-full px-3 py-1.5 bg-slate-800/80 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500"
                 />
@@ -498,7 +498,7 @@ function ShareContent() {
                   <input
                     type="text"
                     value={hrContact}
-                    placeholder="如: 06 12 34 56 78"
+                    placeholder="Marie · 06 12 34 56 78"
                     onChange={(e) => setHrContact(e.target.value)}
                     className="w-full px-3 py-1.5 bg-slate-800/80 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500"
                   />
@@ -511,7 +511,7 @@ function ShareContent() {
                   <textarea
                     rows={2}
                     value={notes}
-                    placeholder="如: 内部内推码、已定制 CV 版本号等..."
+                    placeholder={t('editModal.notesPlaceholder')}
                     onChange={(e) => setNotes(e.target.value)}
                     className="w-full px-3 py-1.5 bg-slate-800/80 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500 resize-none"
                   />
