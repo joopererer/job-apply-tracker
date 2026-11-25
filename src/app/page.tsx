@@ -746,9 +746,9 @@ export default function HomePage() {
         {/* 底部「多维过滤、视图切换、状态 Tab 与列表/网格渲染」 */}
         {/* ============================================================== */}
         <section className="space-y-2.5">
-          {/* 多维快捷筛选工具栏 + 视图模式切换 (单行紧凑，列表/网格靠右) */}
-          <div className="p-2 sm:p-2.5 rounded-2xl bg-slate-900/80 border border-slate-800 text-[11px] sm:text-xs flex items-center justify-between gap-1.5">
-            <div className="flex items-center gap-1.5 flex-1 min-w-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          {/* 多维快捷筛选工具栏 + 视图模式切换 (空间足够同行靠右，窄屏自动换行靠右，绝不遮挡星标与重置按钮) */}
+          <div className="p-2 sm:p-2.5 rounded-2xl bg-slate-900/80 border border-slate-800 text-[11px] sm:text-xs flex flex-wrap items-center justify-between gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
               <Filter className="w-3.5 h-3.5 text-blue-400 shrink-0" />
 
               {/* 平台筛选 */}
@@ -836,8 +836,8 @@ export default function HomePage() {
               )}
             </div>
 
-            {/* 视图模式切换：列表 (List) 与 紧凑网格 (Grid) 置于同一行末尾 */}
-            <div className="flex items-center gap-0.5 bg-slate-950 p-0.5 rounded-xl border border-slate-800 shrink-0">
+            {/* 视图模式切换：列表 (List) 与 紧凑网格 (Grid) 空间足则同行靠右，不够则换行靠右 */}
+            <div className="flex items-center gap-0.5 bg-slate-950 p-0.5 rounded-xl border border-slate-800 ml-auto shrink-0">
               <button
                 type="button"
                 onClick={() => setViewMode('list')}
