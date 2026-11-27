@@ -30,6 +30,13 @@ export interface Dictionary {
     addJob: string;
     userAccount: string;
   };
+  caption: {
+    fab: string; title: string; subtitle: string; back: string; language: string;
+    start: string; stop: string; loadingModel: string; loadingProgress: string;
+    listening: string; idle: string; microphoneError: string; modelError: string;
+    clear: string; copyAll: string; copied: string; noCaptions: string;
+    saveToNotes: string; chooseApplication: string; saveNotes: string; notesSaved: string;
+  };
   stats: {
     total: string;
     totalTooltip: string;
@@ -411,6 +418,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
       addJob: '录入岗位',
       userAccount: '账号',
     },
+    caption: { fab: '实时字幕', title: '离线实时字幕', subtitle: '免提通话辅助 · 音频仅在此设备处理', back: '返回看板', language: '识别语言', start: '开始聆听', stop: '停止聆听', loadingModel: '正在加载离线语音模型...', loadingProgress: '模型下载进度 {progress}%', listening: '正在聆听（请开启电话免提）...', idle: '就绪。首次使用需要下载模型。', microphoneError: '无法访问麦克风，请检查浏览器权限。', modelError: '语音模型加载或识别失败，请检查网络后重试。', clear: '清空屏幕', copyAll: '复制全文', copied: '复制成功', noCaptions: '识别出的字幕会显示在这里', saveToNotes: '保存到岗位备注', chooseApplication: '选择投递记录', saveNotes: '追加到备注', notesSaved: '已保存到岗位备注' },
     stats: {
       total: '总计',
       totalTooltip: '总记录数: {total} (有效投递: {effective} / 仅保存未投: {saved})',
@@ -790,6 +798,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
       addJob: 'Ajouter',
       userAccount: 'Compte',
     },
+    caption: { fab: 'Sous-titres', title: 'Sous-titres hors ligne', subtitle: 'Appels mains libres · audio traité sur cet appareil', back: 'Tableau de bord', language: 'Langue', start: 'Démarrer', stop: 'Arrêter', loadingModel: 'Chargement du modèle vocal hors ligne...', loadingProgress: 'Téléchargement du modèle {progress}%', listening: 'Écoute en cours (activez le haut-parleur du téléphone)...', idle: 'Prêt. Le premier usage télécharge le modèle.', microphoneError: 'Microphone inaccessible. Vérifiez les autorisations du navigateur.', modelError: 'Échec du chargement ou de la transcription. Vérifiez la connexion puis réessayez.', clear: 'Effacer', copyAll: 'Copier tout', copied: 'Copié', noCaptions: 'Les sous-titres apparaîtront ici', saveToNotes: 'Enregistrer dans une note', chooseApplication: 'Choisir une candidature', saveNotes: 'Ajouter à la note', notesSaved: 'Note enregistrée' },
     stats: {
       total: 'Total',
       totalTooltip: 'Total : {total} (Actives : {effective} / Sauvegardées : {saved})',
@@ -1169,6 +1178,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
       addJob: 'Add Job',
       userAccount: 'Account',
     },
+    caption: { fab: 'Live Caption', title: 'Offline Live Captions', subtitle: 'Hands-free call support · audio stays on this device', back: 'Dashboard', language: 'Language', start: 'Start listening', stop: 'Stop listening', loadingModel: 'Loading offline speech model...', loadingProgress: 'Downloading model {progress}%', listening: 'Listening (please enable phone speaker)...', idle: 'Ready. First use downloads the model.', microphoneError: 'Microphone unavailable. Check browser permissions.', modelError: 'Model loading or transcription failed. Check your connection and retry.', clear: 'Clear screen', copyAll: 'Copy all', copied: 'Copied', noCaptions: 'Recognized captions will appear here', saveToNotes: 'Save to job notes', chooseApplication: 'Choose application', saveNotes: 'Append to notes', notesSaved: 'Saved to job notes' },
     stats: {
       total: 'Total',
       totalTooltip: 'Total records: {total} (Applied: {effective} / Saved: {saved})',

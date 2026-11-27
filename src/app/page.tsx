@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   Building2,
   Calendar,
@@ -18,6 +19,7 @@ import {
   LayoutList,
   Loader2,
   MapPin,
+  Mic,
   Maximize2,
   Pencil,
   Phone,
@@ -1467,6 +1469,9 @@ export default function HomePage() {
         userEmail={currentUser?.email || null}
         onDataCleared={() => fetchApplications()}
       />
+      <Link href="/caption" className="fixed bottom-5 right-5 z-40 flex min-h-14 items-center gap-2 rounded-full border border-cyan-200/30 bg-cyan-500 px-5 py-3 font-bold text-slate-950 shadow-xl shadow-cyan-950/40 transition hover:scale-105 hover:bg-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200">
+        <Mic size={19} aria-hidden="true" />{t('caption.fab')}
+      </Link>
     </div>
   );
 }
