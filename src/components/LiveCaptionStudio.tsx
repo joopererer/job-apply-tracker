@@ -8,8 +8,9 @@ import type { ApplicationRecord } from '@/lib/supabase';
 
 type Caption = { id: number; time: string; text: string };
 type ModelId = 'Xenova/whisper-tiny' | 'Xenova/whisper-base';
-type WorkerMessage = { type: 'ready' | 'progress' | 'error' | 'transcript'; progress?: number; status?: string; message?: string; id?: number; sessionId?: number; text?: string; model?: ModelId };
+type WorkerMessage = { type: 'ready' | 'progress' | 'error' | 'transcript' | 'INFER_END'; progress?: number; status?: string; message?: string; id?: number; sessionId?: number; text?: string; model?: ModelId };
 const hallucinations = ['字幕製作人', '字幕制作人', 'Sous-titres réalisés', 'Thank you for watching', 'Thanks for watching', '请订阅', '訂閱'];
+const debug = (message: string, data: Record<string, unknown> = {}) => console.debug(`[ASR ${new Date().toISOString()}] ${message}`, data);
 
 export default function LiveCaptionStudio() {
   const { t } = useI18n();
@@ -39,8 +40,21 @@ export default function LiveCaptionStudio() {
   const sessionIdRef = useRef(0);
   const isListeningRef = useRef(false);
   const isInferringRef = useRef(false);
+  const inferTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const latestText = captions.map((caption) => caption.text).join(' ');
+
+  const releaseInferenceLock = useCallback((reason: string, sessionId?: number) => {
+    if (inferTimeoutRef.current !== null) { clearTimeout(inferTimeoutRef.current); inferTimeoutRef.current = null; }
+    isInferringRef.current = false;
+    debug('inference lock released', { reason, sessionId });
+  }, []);
+
+  const armInferenceTimeout = useCallback((sessionId: number, id: number) => {
+    if (inferTimeoutRef.current !== null) clearTimeout(inferTimeoutRef.current);
+    inferTimeoutRef.current = setTimeout(() => releaseInferenceLock('10s timeout', sessionId), 10000);
+    debug('inference dispatched', { sessionId, id });
+  }, [releaseInferenceLock]);
 
   useEffect(() => {
     const worker = new Worker(new URL('../workers/asr.worker.ts', import.meta.url), { type: 'module' });
@@ -49,19 +63,30 @@ export default function LiveCaptionStudio() {
       const message = event.data;
       if (message.type === 'progress' && typeof message.progress === 'number') setProgress(Math.round(message.progress));
       if (message.type === 'ready' && message.model) { setLoadedModel(message.model); setState((current) => current === 'loading' ? 'ready' : current); }
-      if (message.id !== undefined) isInferringRef.current = false;
+      if (message.type === 'INFER_END') {
+        releaseInferenceLock('worker INFER_END', message.sessionId);
+        debug('inference ended', { id: message.id, sessionId: message.sessionId });
+        return;
+      }
       if (message.type === 'error') {
-        if (message.sessionId !== undefined && (message.sessionId !== sessionIdRef.current || !isListeningRef.current)) return;
+        if (message.sessionId !== undefined && (message.sessionId !== sessionIdRef.current || !isListeningRef.current)) { debug('discarded stale error', { sessionId: message.sessionId }); return; }
         setError(message.message ?? ''); setState('error');
       }
-      if (message.type === 'transcript' && message.text?.trim() && message.sessionId === sessionIdRef.current && isListeningRef.current) {
+      if (message.type === 'transcript' && message.text?.trim()) {
+        if (message.sessionId !== sessionIdRef.current || !isListeningRef.current) { debug('discarded stale transcript', { sessionId: message.sessionId }); return; }
         const text = message.text.trim();
-        if (hallucinations.some((phrase) => text.toLocaleLowerCase().includes(phrase.toLocaleLowerCase()))) return;
+        if (hallucinations.some((phrase) => text.toLocaleLowerCase().includes(phrase.toLocaleLowerCase()))) { debug('discarded hallucination', { sessionId: message.sessionId, text }); return; }
+        debug('caption appended', { sessionId: message.sessionId, text });
         setCaptions((current) => [...current, { id: message.id ?? Date.now(), time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }), text }]);
       }
     };
-    return () => { worker.terminate(); workerRef.current = null; };
-  }, []);
+    worker.onerror = (event) => {
+      releaseInferenceLock('worker error', sessionIdRef.current);
+      debug('worker runtime error', { message: event.message });
+      setError(t('caption.modelError')); setState('error');
+    };
+    return () => { clearTimeout(inferTimeoutRef.current ?? undefined); worker.terminate(); workerRef.current = null; };
+  }, [releaseInferenceLock, t]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [captions]);
 
@@ -75,7 +100,7 @@ export default function LiveCaptionStudio() {
   const stopListening = useCallback(() => {
     sessionIdRef.current += 1;
     isListeningRef.current = false;
-    isInferringRef.current = false;
+    releaseInferenceLock('stop', sessionIdRef.current);
     streamRef.current?.getTracks().forEach((track) => track.stop());
     if (processorRef.current) { processorRef.current.onaudioprocess = null; processorRef.current.disconnect(); }
     sourceRef.current?.disconnect();
@@ -86,7 +111,7 @@ export default function LiveCaptionStudio() {
     wakeLockRef.current = null; samplesRef.current = []; voicedRef.current = false;
     setVolume(0);
     setState((current) => current === 'error' ? current : 'ready');
-  }, []);
+  }, [releaseInferenceLock]);
 
   useEffect(() => () => {
     isListeningRef.current = false;
@@ -98,16 +123,18 @@ export default function LiveCaptionStudio() {
 
   const startListening = async () => {
     setError('');
+    releaseInferenceLock('start', sessionIdRef.current);
     const worker = workerRef.current;
     if (!worker) return;
     if (loadedModel !== model || state === 'error') {
-      setState('loading'); setProgress(0); worker.postMessage({ type: 'load', model }); return;
+      setState('loading'); setProgress(0); worker.postMessage({ type: 'load', model, device: 'wasm' }); return;
     }
     if (state === 'loading') return;
     const sessionId = ++sessionIdRef.current;
     isListeningRef.current = true;
     isInferringRef.current = false;
     setState('listening');
+    debug('capture starting', { sessionId, language });
     let stream: MediaStream | null = null;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
@@ -126,15 +153,17 @@ export default function LiveCaptionStudio() {
         let sum = 0; for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
         const rms = Math.sqrt(sum / input.length);
         setVolume(Math.min(100, Math.round(rms * 700)));
-        if (rms > 0.005) voicedRef.current = true;
+        if (rms > 0.009) voicedRef.current = true;
         if (isInferringRef.current) { samplesRef.current = []; voicedRef.current = false; lastSentRef.current = performance.now(); return; }
         samplesRef.current.push(...input);
-        if (performance.now() - lastSentRef.current >= 1500) {
+        if (performance.now() - lastSentRef.current >= 2200) {
           const samples = samplesRef.current; samplesRef.current = []; lastSentRef.current = performance.now();
           if (voicedRef.current && samples.length) {
             const audio = new Float32Array(samples);
             isInferringRef.current = true;
-            worker.postMessage({ type: 'transcribe', id: ++requestIdRef.current, sessionId, audio, language }, [audio.buffer]);
+            const id = ++requestIdRef.current;
+            armInferenceTimeout(sessionId, id);
+            worker.postMessage({ type: 'transcribe', id, sessionId, audio, language }, [audio.buffer]);
           }
           voicedRef.current = false;
         }
